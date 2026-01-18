@@ -1,0 +1,9 @@
+Django>=5.0,<6.0
+psycopg2-binary>=2.9      # PostgreSQL 어댑터
+python-dotenv>=1.0        # .env 파일 로드용
+pgvector>=0.2             # Django에서 벡터 연산 지원
+django-extensions         # 개발 편의 도구 (선택)
+gunicorn                  # 배포 시 사용할 WSGI 서버 (나중을 위해 미리 추가)
+requests                  # 외부 API 호출용
+openai                    # 요약 및 임베딩용
+beautifulsoup4            # 크롤링용
