@@ -15,7 +15,7 @@ services:
 
 
   db:
-    image: pgvector/pgvector:pg16
+    image: ankane/pgvector:latest
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:

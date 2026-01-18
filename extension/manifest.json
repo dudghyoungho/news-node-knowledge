@@ -1,0 +1,27 @@
+{
+    "manifest_version": 3,
+    "name": "Journal Journey - AI News Archiver",
+    "version": "1.0",
+    "description": "네이버 뉴스를 AI로 요약하고 내 서재에 저장합니다.",
+    "permissions": [
+      "activeTab",
+      "scripting"
+    ],
+    "host_permissions": [
+      "http://localhost:8000/*" 
+    ],
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "기사 요약하기",
+      "default_icon": {
+          "16": "icon.png", 
+          "48": "icon.png",
+          "128": "icon.png"
+      } 
+    },
+    "icons": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  }
