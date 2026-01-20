@@ -7,3 +7,6 @@ gunicorn                  # 배포 시 사용할 WSGI 서버 (나중을 위해 �
 requests                  # 외부 API 호출용
 openai                    # 요약 및 임베딩용
 beautifulsoup4            # 크롤링용
+djangorestframework
+requests
+django-cors-headers

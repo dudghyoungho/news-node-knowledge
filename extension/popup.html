@@ -3,55 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { width: 350px; font-family: 'Apple SD Gothic Neo', sans-serif; padding: 15px; }
-        h2 { margin: 0 0 10px 0; font-size: 18px; color: #333; }
+        body { width: 320px; font-family: 'Apple SD Gothic Neo', sans-serif; padding: 15px; }
+        h2 { margin: 0 0 15px 0; font-size: 18px; color: #333; text-align: center; font-weight: 800; }
         
-        /* 요약 내용이 뜨는 박스 */
-        #summary-box {
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            min-height: 100px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 15px;
-            white-space: pre-wrap; /* 줄바꿈 적용 */
-        }
-
-        /* 버튼 스타일 */
+        /* 공통 버튼 스타일 */
         button {
-            width: 100%;
-            padding: 10px;
-            background-color: #03C75A; /* 네이버 그린 */
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 14px;
-            cursor: pointer;
-            font-weight: bold;
-            margin-bottom: 5px;
-            transition: background-color 0.3s;
+            width: 100%; padding: 12px; border: none; border-radius: 6px;
+            font-size: 14px; cursor: pointer; font-weight: bold; margin-bottom: 8px;
+            transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px;
         }
-        button:hover { background-color: #02b150; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
 
-        /* 상태 메시지 */
-        #status { font-size: 12px; color: #666; margin-top: 5px; text-align: center; }
+        /* 1. 로그인 섹션 스타일 */
+        #login-section { text-align: center; padding-top: 20px; }
+        #btn-google-login { 
+            background-color: #4285F4; color: white; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #btn-google-login:hover { background-color: #357ae8; }
+        .login-desc { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.5; }
+
+        /* 2. 메인 섹션 스타일 */
+        #summary-box {
+            background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
+            padding: 12px; height: 180px; overflow-y: auto;
+            font-size: 13px; line-height: 1.6; margin-bottom: 12px; 
+            white-space: pre-wrap; color: #333;
+        }
         
-        /* 유틸리티 클래스 */
-        .hidden { display: none; }
+        /* 네이버 그린 */
+        #btn-summarize { background-color: #03C75A; color: white; }
+        #btn-summarize:hover { background-color: #02b150; }
+        #btn-summarize:disabled { background-color: #e0e0e0; color: #aaa; cursor: not-allowed; }
+        
+        /* 저장 버튼 (검정) */
+        #btn-save { background-color: #343a40; color: white; }
+        #btn-save:hover { background-color: #23272b; }
+
+        /* 상태 메시지 및 유틸 */
+        .hidden { display: none !important; }
+        #status { font-size: 12px; color: #888; text-align: center; margin-top: 10px; min-height: 15px;}
+        
+        /* 로그아웃 링크 */
+        .footer-link { display: block; text-align: right; font-size: 11px; color: #aaa; text-decoration: none; margin-top: 8px; }
+        .footer-link:hover { color: #666; }
     </style>
 </head>
 <body>
-    <h2>📰 AI 기사 요약</h2>
-    
-    <div id="summary-box">버튼을 누르면 요약을 시작합니다.</div>
+    <h2>📰 Journal Journey</h2>
 
-    <button id="btn-summarize">⚡️ 3줄 요약 시작</button>
-    <button id="btn-save" class="hidden">💾 내 서재에 저장</button>
+    <div id="login-section">
+        <p class="login-desc">
+            뉴스를 요약하고 서재에 저장하려면<br>
+            로그인이 필요합니다.
+        </p>
+        <button id="btn-google-login">
+            <svg width="18" height="18" viewBox="0 0 18 18">
+                <path fill="#fff" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+                <path fill="#fff" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.715H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                <path fill="#fff" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                <path fill="#fff" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+            </svg>
+            Google 계정으로 시작
+        </button>
+    </div>
+
+    <div id="main-section" class="hidden">
+        <div id="summary-box">버튼을 누르면 AI가 기사를 읽기 시작합니다.</div>
+        
+        <button id="btn-summarize">⚡️ 3줄 요약 시작</button>
+        <button id="btn-save" class="hidden">💾 내 서재에 저장</button>
+
+        <a href="#" id="btn-logout" class="footer-link">로그아웃</a>
+    </div>
 
     <div id="status"></div>
 

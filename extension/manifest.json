@@ -1,27 +1,36 @@
 {
-    "manifest_version": 3,
-    "name": "Journal Journey - AI News Archiver",
-    "version": "1.0",
-    "description": "네이버 뉴스를 AI로 요약하고 내 서재에 저장합니다.",
-    "permissions": [
-      "activeTab",
-      "scripting"
-    ],
-    "host_permissions": [
-      "http://localhost:8000/*" 
-    ],
-    "action": {
-      "default_popup": "popup.html",
-      "default_title": "기사 요약하기",
-      "default_icon": {
-          "16": "icon.png", 
-          "48": "icon.png",
-          "128": "icon.png"
-      } 
-    },
-    "icons": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
-    }
+  "manifest_version": 3,
+  "name": "Journal Journey - AI News Archiver",
+  "version": "1.0",
+  "description": "네이버 뉴스를 AI로 요약하고 내 서재에 저장합니다.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "identity",
+    "storage"
+  ],
+  "oauth2": {
+    "client_id": "931342749665-93r0vp451jthe24bvo8515orpgu6tr4h.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
+  "host_permissions": [
+    "http://localhost:8000/*" 
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "기사 요약하기",
+    "default_icon": {
+        "16": "icon.png", 
+        "48": "icon.png",
+        "128": "icon.png"
+    } 
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
   }
+}
