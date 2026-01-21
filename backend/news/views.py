@@ -11,7 +11,7 @@ from rest_framework import status
 
 from .models import Article
 from .crawler import fetch_naver_news
-from .ai_service import summarize_stream
+from .ai_service import summarize_stream, get_embedding
 
 # 로그 설정
 logger = logging.getLogger(__name__)
@@ -155,15 +155,36 @@ def save_article(request):
 
     # 내(user)가 가진 기사 중에서 찾기
     article = get_object_or_404(Article, user=request.user, url=url)
+    if not article:
+            return JsonResponse({'error': '기사를 찾을 수 없습니다.'}, status=404)
 
     try:
         article.status = Article.Status.SAVED
+
+        # 임베딩 생성 로직이 추가
+        if article.embedding is None:
+            print(f"🧠 임베딩 생성 시작: {article.title}")
+            
+            # 제목과 본문을 합쳐서 벡터를 만드는 게 정확도가 더 높습니다.
+            full_text = f"{article.title} {article.content}"
+            
+            # 텍스트가 너무 길면(8191 토큰 초과) 잘라줘야 에러가 안 납니다.
+            # 간단하게 앞부분 8000자만 사용 (뉴스 기사는 보통 이 안에 다 들어감)
+            vector = get_embedding(full_text[:8000])
+            
+            if vector:
+                article.embedding = vector
+                print("✅ 임베딩 저장 완료")
+            else:
+                print("⚠️ 임베딩 생성 실패 (다음 기회에...)")
+
+
         article.save()
 
-        # TODO: 임베딩 생성 로직이 있다면 여기에 추가 (Celery 등 비동기 추천)
-
+        
         return Response({'message': '성공적으로 저장되었습니다.', 'status': 'SAVED'}, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.error(f"❌ 저장 에러: {str(e)}")
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    

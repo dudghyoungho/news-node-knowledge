@@ -135,3 +135,5 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
     ],
 }
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")

@@ -1,6 +1,8 @@
-from openai import OpenAI
 from django.conf import settings
 import os
+from openai import OpenAI
+
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 # Django 실행 환경이 아닐 때도 .env를 로드하기 위한 처리 (테스트용)
 if not settings.configured:
@@ -39,20 +41,21 @@ def summarize_stream(text):
     except Exception as e:
         yield f"AI 요약 중 오류가 발생했습니다: {str(e)}"
 
-# ---- 테스트 코드 ----
-if __name__ == "__main__":
-    # 긴 텍스트 예시 (애국가 1~4절)
-    dummy_text = """
-    동해물과 백두산이 마르고 닳도록 하느님이 보우하사 우리나라 만세.
-    남산 위에 저 소나무 철갑을 두른 듯 바람 서리 불변함은 우리 기상일세.
-    가을 하늘 공활한데 높고 구름 없이 밝은 달은 우리 가슴 일편단심일세.
-    이 기상과 이 맘으로 충성을 다하여 괴로우나 즐거우나 나라 사랑하세.
+
+def get_embedding(text):
     """
+    텍스트를 벡터 리스트로 반환한다. 모델 : text-embedding-3-small
+    """
+    try:
+        text = text.replace("\n"," ")
+        response = client.embeddings.create(
+            input=[text],
+            model = "text-embedding-3-small"
+        )
+
+        vector = response.data[0].embedding
+        return vector
     
-    print("--- 스트리밍 요약 시작 ---")
-    
-    # 한 글자씩 받아오는지 눈으로 확인
-    for token in summarize_stream(dummy_text):
-        print(token, end="", flush=True) # 줄바꿈 없이 옆으로 계속 찍기
-        
-    print("\n\n--- 종료 ---")
+    except Exception as e:
+        print(f"임베딩 생성 실패 : {e}")
+        return None
