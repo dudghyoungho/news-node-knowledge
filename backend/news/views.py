@@ -2,7 +2,7 @@ import logging
 import requests
 from django.http import StreamingHttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, logout
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -158,59 +158,63 @@ def summarize(request):
 # ---------------------------------------------------------
 # 3. 기사 최종 저장 (확정)
 # ---------------------------------------------------------
+# backend/news/views.py
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def save_article(request):
     """
-    PENDING 상태의 기사를 SAVED 상태로 변경합니다.
+    기사를 SAVED 상태로 변경하고, 최종 요약문과 임베딩(벡터)을 저장합니다.
     """
+    # 1. 클라이언트(확장프로그램)가 보낸 데이터 받기
     url = request.data.get('url')
+    summary_text = request.data.get('summary')  # [추가] 요약문 받기
     
     if not url:
         return Response({'error': 'URL이 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 내(user)가 가진 기사 중에서 찾기
+    # 2. 내(user)가 가진 기사 중에서 찾기
     article = get_object_or_404(Article, user=request.user, url=url)
-    if not article:
-            return JsonResponse({'error': '기사를 찾을 수 없습니다.'}, status=404)
 
     try:
+        # 3. 상태 변경 및 요약문 업데이트
         article.status = Article.Status.SAVED
+        
+        # [추가] 스트리밍 중 누락됐을 수도 있으니, 클라이언트가 보낸 최종 요약본으로 덮어쓰기
+        if summary_text:
+            article.summary = summary_text
 
-        # 임베딩 생성 로직이 추가
+        # 4. 임베딩(Vector) 생성 로직
         if article.embedding is None:
             print(f"🧠 임베딩 생성 시작: {article.title}")
             
-            # 제목과 본문을 합쳐서 벡터를 만드는 게 정확도가 더 높습니다.
-            full_text = f"{article.title} {article.content}"
+            # 제목 + 본문 + 요약문을 합치면 검색 정확도가 더 높아집니다.
+            full_text = f"{article.title} {article.content} {article.summary}"
             
-            # 텍스트가 너무 길면(8191 토큰 초과) 잘라줘야 에러가 안 납니다.
-            # 간단하게 앞부분 8000자만 사용 (뉴스 기사는 보통 이 안에 다 들어감)
+            # OpenAI API 호출 (비용 절약을 위해 길이 제한)
             vector = get_embedding(full_text[:8000])
             
             if vector:
                 article.embedding = vector
                 print("✅ 임베딩 저장 완료")
             else:
-                print("⚠️ 임베딩 생성 실패 (다음 기회에...)")
+                print("⚠️ 임베딩 생성 실패 (API 오류 등)")
 
-
+        # 5. 최종 저장
         article.save()
 
-        
         return Response({'message': '성공적으로 저장되었습니다.', 'status': 'SAVED'}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.error(f"❌ 저장 에러: {str(e)}")
+        print(f"❌ 저장 에러: {str(e)}") # logger 대신 print 사용 (터미널 확인용)
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_knowledge_graph(request):
     """
     DB에 저장된 기사들을 가져와서 그래프 데이터(Nodes, Links)로 변환
-    현재 로직: [기사] --- (속함) --> [카테고리]
+    구조: [기사] --- (속함) --> [카테고리]
     """
     # 1. 로그인한 유저의 '저장된(SAVED)' 기사만 가져오기
     articles = Article.objects.filter(user=request.user, status=Article.Status.SAVED)
@@ -218,47 +222,52 @@ def get_knowledge_graph(request):
     nodes = []
     links = []
     
-    # 중복된 카테고리 노드 생성을 방지하기 위한 집합(Set)
-    existing_categories = set()
+    # 노드 중복 방지를 위한 집합 (ID만 저장)
+    existing_nodes = set()
 
     for article in articles:
         # -------------------------------------------------
-        # 1. 기사 노드 생성 (Group 1)
+        # 1. ID 및 이름 생성
         # -------------------------------------------------
-        # 제목이 너무 길면 그래프가 지저분하므로 cut
-        short_title = (article.title[:15] + '...') if len(article.title) > 15 else article.title
+        article_id = f"article_{article.id}"
         
-        # 노드 ID를 유니크하게 만들기 위해 'art_' 접두사 사용
-        article_node_id = article.title  # 화면에 제목을 띄우기 위해 ID에 제목 사용 (중복 주의)
-        
-        # 만약 제목이 겹칠 수 있다면 아래처럼 ID 뒤에 숫자를 붙이기
-        # article_node_id = f"{short_title}_{article.id}"
-
-        nodes.append({
-            "id": article_node_id,   # 그래프 화면에 표시될 텍스트
-            "group": 1               # 1번 그룹: 기사 (파란색 등)
-        })
-
-        # -------------------------------------------------
-        # 2. 카테고리 노드 생성 (Group 2)
-        # -------------------------------------------------
-        # 카테고리가 없으면 '기타'로 분류
+        # 카테고리가 없으면 '기타'로 처리
         category_name = article.category if article.category else "기타"
-        
-        # 카테고리 노드는 중복해서 만들면 안 되므로 검사
-        if category_name not in existing_categories:
-            nodes.append({
-                "id": category_name,
-                "group": 2           # 2번 그룹: 카테고리 (주황색 등)
-            })
-            existing_categories.add(category_name)
+        category_id = f"category_{category_name}"
 
         # -------------------------------------------------
-        # 3. 링크 연결 (기사 -> 카테고리)
+        # 2. 기사 노드 추가 (Article)
+        # -------------------------------------------------
+        if article_id not in existing_nodes:
+            nodes.append({
+                "id": article_id,
+                "name": article.title,       # 화면 표시 이름
+                "group": 1,                  # 그룹 1: 기사 (파란색)
+                "url": article.url,          # 클릭 시 이동 링크
+                "val": 10                    # 노드 크기
+            })
+            existing_nodes.add(article_id)
+
+        # -------------------------------------------------
+        # 3. 카테고리 노드 추가 (Category)
+        # -------------------------------------------------
+        # ★ 수정된 부분: category_name이 아니라 category_id로 검사해야 함
+        if category_id not in existing_nodes:
+            nodes.append({
+                "id": category_id,
+                "name": category_name,       # 화면 표시 이름
+                "group": 2,                  # 그룹 2: 카테고리 (주황색)
+                "url": "",                   # 링크 없음
+                "val": 20                    # 카테고리는 더 크게 강조
+            })
+            existing_nodes.add(category_id)
+
+        # -------------------------------------------------
+        # 4. 링크 연결 (기사 -> 카테고리)
         # -------------------------------------------------
         links.append({
-            "source": article_node_id,  # 출발: 기사 제목
-            "target": category_name,    # 도착: 카테고리 이름
+            "source": article_id,
+            "target": category_id,
             "value": 1
         })
 
@@ -284,15 +293,19 @@ def dashboard_page(request):
 
     if token_key:
         try:
-            # 토큰으로 유저 찾기
             token = Token.objects.get(key=token_key)
-            user = token.user
+            target_user = token.user
             
-            # ★ 핵심 수정: backend 파라미터를 명시적으로 지정해야 합니다!
-            # 이것이 없으면 세션이 생성되지 않는 경우가 많습니다.
-            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            # [핵심 수정] 
+            # 만약 현재 로그인된 유저와 토큰 주인이 다르다면? -> 기존 세션 로그아웃!
+            if request.user.is_authenticated and request.user != target_user:
+                print(f"👋 기존 유저({request.user}) 로그아웃 -> 새 유저({target_user})로 교체")
+                logout(request)
             
-            print(f"✅ 토큰 로그인 성공! -> {user.username}")
+            # 토큰 주인으로 로그인 (백엔드 명시 필수)
+            login(request, target_user, backend='django.contrib.auth.backends.ModelBackend')
+            
+            print(f"✅ 토큰 유저 로그인 성공: {target_user.username}")
             
             # 토큰 파라미터를 떼고 깨끗한 주소로 다시 이동
             return redirect('dashboard')

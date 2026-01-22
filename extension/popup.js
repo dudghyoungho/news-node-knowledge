@@ -240,9 +240,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnGraph) {
         btnGraph.addEventListener('click', () => {
-            // 기존: /api/news/graph/
-            // 수정: /api/news/dashboard/  <-- 대시보드 URL로 변경
-            chrome.tabs.create({ url: `${SERVER_URL}/dashboard/` });
+            console.log("현재 토큰 값:", userToken); // ★ 콘솔에 토큰이 찍히는지 확인
+
+            if (!userToken) {
+                alert("로그인이 필요합니다. (토큰 없음)");
+                return;
+            }
+
+            // URL 생성
+            const targetUrl = `${SERVER_URL}/dashboard/?token=${userToken}`;
+            console.log("이동할 URL:", targetUrl); // ★ URL 뒤에 토큰이 잘 붙었는지 확인
+
+            // 새 탭 열기
+            chrome.tabs.create({ url: targetUrl });
         });
     }
 });
