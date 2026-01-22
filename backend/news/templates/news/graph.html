@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>My Knowledge Universe</title>
+    <script src="//unpkg.com/force-graph"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000011; color: white; font-family: sans-serif; }
+        #graph-container { width: 100vw; height: 100vh; }
+        .controls { position: absolute; top: 20px; left: 20px; z-index: 99; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; }
+        h1 { margin: 0; font-size: 18px; color: #aaaaff; }
+        p { margin: 5px 0 0; font-size: 12px; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h1>🌌 Knowledge Galaxy</h1>
+        <p>마우스 휠: 확대/축소</p>
+        <p>드래그: 이동 및 회전</p>
+        <p>클릭: 기사 페이지 이동</p>
+    </div>
+
+    <div id="graph-container"></div>
+
+    <script>
+        // 1. 그래프 초기화
+        const Graph = ForceGraph()
+            (document.getElementById('graph-container'))
+            .backgroundColor('#000011') // 우주 같은 배경색
+            .nodeId('id')
+            .nodeLabel('name') // 마우스 올리면 제목 뜸
+            .nodeColor(node => '#44aaff') // 노드 색상 (형광 파랑)
+            .linkColor(() => '#ffffff33') // 링크 색상 (투명한 흰색)
+            .nodeRelSize(6) // 노드 크기
+            
+            // 기사 클릭 시 원문으로 이동
+            .onNodeClick(node => {
+                window.open(node.url, '_blank');
+            });
+
+        // 2. 데이터 불러오기
+        fetch('/api/news/api/graph/')
+            .then(res => {
+                if (res.status === 401) {
+                    alert('로그인이 필요합니다.');
+                    window.location.href = '/admin/';
+                    return;
+                }
+                return res.json();
+            })
+            .then(data => {
+                // 데이터 주입 (물리 엔진 시작!)
+                Graph.graphData(data);
+                
+                // 화면에 꽉 차게 줌 조정
+                setTimeout(() => Graph.zoomToFit(400), 1000);
+            })
+            .catch(err => console.error(err));
+    </script>
+</body>
+</html>

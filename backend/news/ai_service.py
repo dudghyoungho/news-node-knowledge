@@ -9,6 +9,39 @@ if not settings.configured:
     import dotenv
     dotenv.load_dotenv()
 
+
+def classify_news(text):
+    """
+    뉴스 본문을 읽고 [정치, 경제, 사회, 생활/문화, 세계, IT/과학, 스포츠, 연예] 중 하나로 분류합니다.
+    """
+    try:
+        # 텍스트가 너무 길면 앞부분 1500자만 읽어도 분류 가능 (토큰 절약)
+        short_text = text[:1500]
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 뉴스 분류기입니다. 주어진 뉴스 기사를 읽고 다음 카테고리 중 가장 적절한 하나를 선택해 단어만 반환하세요.\n"
+                        "카테고리 목록: [정치, 경제, 사회, 생활/문화, 세계, IT/과학, 스포츠, 연예]\n"
+                        "부가적인 설명 없이 오직 카테고리 명사만 출력하세요."
+                    )
+                },
+                {"role": "user", "content": short_text}
+            ],
+            temperature=0.3, # 창의성 낮춤 (정확한 분류 위해)
+        )
+        
+        category = completion.choices[0].message.content.strip()
+        return category
+
+    except Exception as e:
+        print(f"카테고리 분류 실패: {e}")
+        return "기타"
+
+
 def summarize_stream(text):
     """
     뉴스 본문을 받아 OpenAI로 3줄 요약하고, 결과를 실시간으로 스트리밍합니다.

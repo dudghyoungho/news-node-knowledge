@@ -132,8 +132,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.TokenAuthentication',   # 1. 크롬 익스텐션용 (Token)
+        'rest_framework.authentication.SessionAuthentication', # 2. 웹 대시보드용 (Cookie/Session) -> [추가!]
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
 }
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")

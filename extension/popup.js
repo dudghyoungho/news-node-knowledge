@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const btnSummarize = document.getElementById('btn-summarize');
     const btnSave = document.getElementById('btn-save');
+
+    const btnGraph = document.getElementById('btn-graph');
     
     const summaryBox = document.getElementById('summary-box');
     const statusMsg = document.getElementById('status');
@@ -235,5 +237,13 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMsg.textContent = "저장 실패: " + error.message;
         }
     });
+
+    if (btnGraph) {
+        btnGraph.addEventListener('click', () => {
+            // 기존: /api/news/graph/
+            // 수정: /api/news/dashboard/  <-- 대시보드 URL로 변경
+            chrome.tabs.create({ url: `${SERVER_URL}/dashboard/` });
+        });
+    }
 });
 
