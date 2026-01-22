@@ -244,7 +244,8 @@ def get_knowledge_graph(request):
                 "name": article.title,       # 화면 표시 이름
                 "group": 1,                  # 그룹 1: 기사 (파란색)
                 "url": article.url,          # 클릭 시 이동 링크
-                "val": 10                    # 노드 크기
+                "val": 10,       # 노드 크기
+                "summary": article.summary if article.summary else "요약 내용이 없습니다.",
             })
             existing_nodes.add(article_id)
 
