@@ -3,30 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <title>My Knowledge Universe</title>
+    <script src="//unpkg.com/d3"></script>
     <script src="//unpkg.com/force-graph"></script>
+    
     <style>
         body { margin: 0; overflow: hidden; background-color: #000011; color: white; font-family: 'Apple SD Gothic Neo', sans-serif; }
         #graph-container { width: 100vw; height: 100vh; }
         
-        /* 컨트롤 패널 스타일 */
-        .controls { position: absolute; top: 20px; left: 20px; z-index: 99; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); }
+        .controls { position: absolute; top: 20px; left: 20px; z-index: 99; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); pointer-events: none; }
         h1 { margin: 0 0 10px 0; font-size: 16px; color: #74b9ff; font-weight: bold; }
         p { margin: 5px 0 0; font-size: 12px; color: #ddd; }
         
-        /* 데이터 없음 메시지 */
-        #empty-message {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; color: #888; display: none;
-        }
+        #empty-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #888; display: none; }
     </style>
 </head>
 <body>
 
     <div class="controls">
         <h1>🌌 Knowledge Galaxy</h1>
-        <p>🖱️ 휠: 확대/축소</p>
-        <p>🖐️ 드래그: 이동</p>
-        <p>👆 클릭: 원문 이동</p>
+        <p>글자가 작으면 휠을 굴려 확대하세요.</p>
+        <p>기사(파란별)를 클릭하면 이동합니다.</p>
     </div>
 
     <div id="empty-message">
@@ -40,56 +36,79 @@
         const elem = document.getElementById('graph-container');
         const emptyMsg = document.getElementById('empty-message');
 
-        // 1. 그래프 설정
+        // 그래프 초기화
         const Graph = ForceGraph()(elem)
             .backgroundColor('#000011')
-            .nodeId('id')             // 고유 식별자 (views.py의 article_id)
-            .nodeLabel('name')        // 마우스 올렸을 때 뜨는 이름 (views.py의 article.title)
-            .nodeVal('val')           // 노드 크기
-            
-            // 노드 색상: 그룹1(기사)=파랑, 그룹2(카테고리)=주황
-            .nodeColor(node => node.group === 2 ? '#ff7675' : '#0984e3')
-            
-            // 링크 디자인
-            .linkColor(() => 'rgba(255,255,255,0.2)')
+            .nodeId('id')
+            .nodeLabel('name')
+            .nodeVal('val')
+            .linkColor(() => 'rgba(255,255,255,0.15)')
             .linkWidth(1)
+            
+            // 1. 커스텀 노드 그리기 (글자 표시)
+            .nodeCanvasObject((node, ctx, globalScale) => {
+                const radius = Math.sqrt(node.val) * 2; 
+                const color = node.group === 2 ? '#ff7675' : '#0984e3'; 
+                
+                // 노드 원 그리기
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+                ctx.fillStyle = color;
+                ctx.fill();
 
-            // 노드 클릭 이벤트
+                // 텍스트 그리기 (글자 크기 자동 조절)
+                const fontSize = 12 / globalScale; 
+                if (globalScale > 0.6) { // 줌을 좀 덜 해도 보이게 0.8 -> 0.6으로 조정
+                    ctx.font = `${fontSize}px Sans-Serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.fillText(node.name, node.x, node.y + radius + (fontSize/2) + 2);
+                }
+            })
+            .nodePointerAreaPaint((node, color, ctx) => {
+                const radius = Math.sqrt(node.val) * 2; 
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius + 5, 0, 2 * Math.PI, false); 
+                ctx.fill();
+            })
+            
+            // 2. 물리 엔진 튜닝 (d3 객체 사용)
+            .d3Force('charge', d3.forceManyBody().strength(-200)) // 척력
+            .d3Force('link', d3.forceLink().distance(80).id(d => d.id)) // 링크 길이
+            
+            // 3. 클릭 이벤트
             .onNodeClick(node => {
                 if (node.url) {
                     window.open(node.url, '_blank');
                 } else {
-                    // 카테고리 노드 클릭 시 (확대해서 보여주기)
                     Graph.centerAt(node.x, node.y, 1000);
-                    Graph.zoom(8, 2000);
+                    Graph.zoom(4, 2000);
                 }
             });
 
-        // 2. 데이터 불러오기
+        // 데이터 Fetch
         fetch('/api/news/api/graph/')
             .then(res => {
-                if (res.status === 401) {
-                    // 로그인 풀렸을 때 처리
-                    document.body.innerHTML = "<h2 style='color:white;text-align:center;margin-top:20%'>로그인이 필요합니다.</h2>";
-                    throw new Error("Unauthorized");
-                }
+                if (!res.ok) throw new Error("Network response was not ok");
                 return res.json();
             })
             .then(data => {
-                console.log("Graph Data:", data); // 디버깅용 로그
-
-                // 데이터가 비어있는 경우
+                console.log("Graph Data Loaded:", data); // 디버깅용
                 if (data.nodes.length === 0) {
                     emptyMsg.style.display = 'block';
                 } else {
                     emptyMsg.style.display = 'none';
                     Graph.graphData(data);
                     
-                    // 약간의 딜레이 후 줌인 효과
-                    setTimeout(() => Graph.zoomToFit(400, 50), 500);
+                    // 데이터 로드 후 살짝 줌아웃해서 전체 보여주기
+                    setTimeout(() => Graph.zoomToFit(500, 50), 200);
                 }
             })
-            .catch(err => console.error("Error loading graph:", err));
+            .catch(err => {
+                console.error("그래프 로딩 실패:", err);
+            });
     </script>
 </body>
 </html>

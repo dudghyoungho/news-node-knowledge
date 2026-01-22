@@ -12,11 +12,24 @@ if not settings.configured:
 
 def classify_news(text):
     """
-    뉴스 본문을 읽고 [정치, 경제, 사회, 생활/문화, 세계, IT/과학, 스포츠, 연예] 중 하나로 분류합니다.
+    뉴스 본문을 읽고 세분화된 카테고리로 분류합니다.
     """
     try:
-        # 텍스트가 너무 길면 앞부분 1500자만 읽어도 분류 가능 (토큰 절약)
-        short_text = text[:1500]
+        short_text = text[:1000] # 앞부분만 읽어도 분류 충분
+
+        # 카테고리 리스트 확장 (스포츠, 부동산, 주식, AI 등 구체화)
+        categories = [
+            "정치/선거", "행정/정책", 
+            "경제/금융", "부동산", "주식/투자", "기업/비즈니스",
+            "사회/사건사고", "법률/인권", "교육/학교",
+            "국제/외교", "북한",
+            "생활/건강", "여행/레저", "음식/맛집",
+            "IT/테크", "AI/로봇", "모바일/통신", "게임", "과학/우주",
+            "스포츠", "축구", "야구", "골프",
+            "연예/방송", "영화/음악", "문화/예술"
+        ]
+        
+        categories_str = ", ".join(categories)
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -24,22 +37,31 @@ def classify_news(text):
                 {
                     "role": "system",
                     "content": (
-                        "당신은 뉴스 분류기입니다. 주어진 뉴스 기사를 읽고 다음 카테고리 중 가장 적절한 하나를 선택해 단어만 반환하세요.\n"
-                        "카테고리 목록: [정치, 경제, 사회, 생활/문화, 세계, IT/과학, 스포츠, 연예]\n"
-                        "부가적인 설명 없이 오직 카테고리 명사만 출력하세요."
+                        f"당신은 뉴스 분류 전문가입니다. 다음 뉴스 기사를 읽고 아래 카테고리 목록 중 "
+                        f"내용과 가장 연관성이 높은 **단 하나**를 선택해 반환하세요.\n"
+                        f"목록: [{categories_str}]\n"
+                        f"주의: '기타'라는 말은 쓰지 마세요. 무조건 위 목록 중 하나를 골라야 합니다."
+                        f"오직 카테고리 명사만 출력하세요."
                     )
                 },
                 {"role": "user", "content": short_text}
             ],
-            temperature=0.3, # 창의성 낮춤 (정확한 분류 위해)
+            temperature=0.1, # 창의성 억제 (정확한 분류)
         )
         
         category = completion.choices[0].message.content.strip()
+        
+        # 혹시라도 AI가 이상한 말을 붙이면 정제
+        if category not in categories:
+            # 리스트에 없으면 그냥 냅두거나, 가장 유사한걸 찾게 할 수도 있음.
+            # 일단은 그대로 저장 (AI가 새로운 카테고리를 만들 수도 있으므로 유연하게)
+            pass
+            
         return category
 
     except Exception as e:
         print(f"카테고리 분류 실패: {e}")
-        return "기타"
+        return "일반"
 
 
 def summarize_stream(text):
