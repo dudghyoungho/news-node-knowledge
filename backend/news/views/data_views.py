@@ -25,6 +25,7 @@ def get_knowledge_graph(request):
                 "url": article.url,
                 "val": 10,
                 "summary": article.summary if article.summary else "요약 내용이 없습니다.",
+                "img": article.thumbnail_url,
             })
             existing_nodes.add(article_id)
 
@@ -45,3 +46,29 @@ def get_knowledge_graph(request):
         })
 
     return JsonResponse({"nodes": nodes, "links": links})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_reading_statistics(request):
+    """
+    최근 7일간 날짜별 읽은(저장한) 기사 개수를 반환합니다.
+    Format: [{ "date": "2024-01-22", "count": 5 }, ...]
+    """
+    # 1. 날짜별 그룹화 (SAVED 상태만)
+    stats = Article.objects.filter(user=request.user, status=Article.Status.SAVED) \
+        .annotate(date=TruncDate('created_at')) \
+        .values('date') \
+        .annotate(count=Count('id')) \
+        .order_by('date')
+
+    # 2. 데이터 정제 (최근 데이터만 보낸다거나 하는 로직 추가 가능)
+    # 쿼리셋 결과는 date 객체이므로 문자열로 변환 필요
+    result = [
+        {
+            "date": item['date'].strftime('%Y-%m-%d'), 
+            "count": item['count']
+        } 
+        for item in stats
+    ]
+
+    return JsonResponse(result, safe=False)
