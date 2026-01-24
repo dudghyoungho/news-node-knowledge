@@ -10,24 +10,64 @@
 <body>
 
     <div class="sidebar">
-        <div class="logo">News-Node-Knowledge 🧠</div>
-        <div class="menu-item active">My knowledge</div>
-        <div class="menu-item">My Librarian</div>
+        <div class="logo">News-Node 🧠</div>
+        
+        <div class="menu-item active" data-target="view-knowledge">
+            🪐 My Knowledge
+        </div>
+        <div class="menu-item" data-target="view-librarian">
+            🤖 My Librarian
+        </div>
     </div>
 
     <div class="main-content">
-        <div class="header">나의 지식 연결망</div>
         
-        <div class="chart-container">
-            <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #555;">📅 일별 지식 축적량</h3>
-            <div style="height: 200px;">
-                <canvas id="activityChart"></canvas>
+        <div id="view-knowledge" class="view-section">
+            <div class="header">
+                나의 지식 연결망
+                <span id="user-persona" class="persona-badge">Loading...</span>
+            </div>
+            
+            <div class="stats-panel">
+                <div class="chart-card">
+                    <h3>📅 이번 주 지식 리듬</h3>
+                    <div class="chart-box">
+                        <canvas id="weeklyChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card">
+                    <h3>🧠 나의 관심 뇌구조</h3>
+                    <div class="chart-box">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="graph-container">
+                <iframe src="/api/news/graph/"></iframe>
             </div>
         </div>
 
-        <div class="graph-container">
-            <iframe src="/api/news/graph/"></iframe>
+        <div id="view-librarian" class="view-section" style="display: none;">
+            <div class="header">AI 지식 사서</div>
+            
+            <div class="librarian-section">
+                <h3>🕰️ 지식 타임캡슐 (Review)</h3>
+                <div id="review-card" class="ai-card">
+                    <p class="loading-text">AI가 서재를 뒤적이는 중입니다... 📚</p>
+                    </div>
+            </div>
+
+            <div class="librarian-section">
+                <h3>🔭 지식 확장 (Discovery)</h3>
+                <p class="section-desc">최근 관심사를 분석해 웹에서 새로운 지식을 찾아왔어요.</p>
+                <div id="external-list" class="ai-list">
+                    <p class="loading-text">관심사 키워드 추출 중... 🛰️</p>
+                    </div>
+            </div>
         </div>
+
     </div>
 
     <script src="{% static 'news/js/dashboard.js' %}"></script>
