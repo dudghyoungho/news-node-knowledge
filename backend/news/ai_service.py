@@ -115,7 +115,7 @@ def get_embedding(text):
         print(f"임베딩 생성 실패 : {e}")
         return None
     
-def get_completion(prompt, system_role="당신은 유능한 지식 비서입니다."):
+def get_completion(prompt, system_role="당신은 유능한 지식 비서입니다.", temperature=0.7):
     """
     프롬프트를 받아 GPT-4o-mini의 답변을 반환합니다. (RAG 및 일반 대화용)
     """
@@ -126,7 +126,7 @@ def get_completion(prompt, system_role="당신은 유능한 지식 비서입니�
                 {"role": "system", "content": system_role},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7, # 약간의 창의성을 허용 (문구 생성 등)
+            temperature=temperature, # 약간의 창의성을 허용 (문구 생성 등)
         )
         
         return completion.choices[0].message.content.strip()

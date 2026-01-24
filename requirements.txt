@@ -10,3 +10,4 @@ beautifulsoup4            # 크롤링용
 djangorestframework
 requests
 django-cors-headers
+numpy

@@ -1,9 +1,17 @@
+import os
 import random
 from datetime import timedelta
 from django.utils import timezone
 from pgvector.django import CosineDistance
 from .models import Article
 from .ai_service import get_embedding, get_completion
+import requests
+
+import numpy as np
+from django.db.models import F
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
 
 # ---------------------------------------------------------
 # 1. 맥락 연결 (Context Connection)
@@ -87,63 +95,124 @@ def review_past_knowledge(user):
 # ---------------------------------------------------------
 def search_web_for_articles(keyword):
     """
-    외부 검색 API 연동 부분 (현재는 더미 데이터 반환)
-    실제 서비스 시 Google Custom Search API 등을 연결해야 합니다.
+    Google Custom Search API를 사용하여 실제 기사 원문 링크를 가져옵니다.
     """
-    # 임시 더미 데이터 (구현 테스트용)
-    return [
-        {
-            "title": f"'{keyword}'의 미래 전망 보고서",
-            "url": "https://google.com/search?q=" + keyword,
-            "snippet": f"최근 {keyword} 기술이 급격히 발전하며 시장의 판도를 바꾸고 있습니다..."
-        },
-        {
-            "title": f"{keyword} 관련 최신 트렌드 분석",
-            "url": "https://google.com/search?q=" + keyword,
-            "snippet": f"전문가들은 {keyword} 분야에서 새로운 기회가 창출될 것으로 예측합니다."
+    # ★ 수정된 안전한 체크 로직
+    # 키가 아예 없거나(None), 빈 문자열이거나, 초기값이 들어있는 경우 체크
+    is_invalid_key = (
+        GOOGLE_API_KEY is None or 
+        GOOGLE_API_KEY == "" or 
+        "발급받은" in GOOGLE_API_KEY
+    )
+
+    if is_invalid_key: 
+        return [
+            {
+                "title": f"[Demo] '{keyword}' 관련 기사 (API 키 설정 필요)",
+                "url": f"https://www.google.com/search?q={keyword}",
+                "snippet": ".env 파일에 구글 API 키를 설정하면 실제 기사 원문으로 연결됩니다."
+            }
+        ]
+
+    try:
+        url = "https://www.googleapis.com/customsearch/v1"
+        params = {
+            'key': GOOGLE_API_KEY,
+            'cx': GOOGLE_SEARCH_CX,
+            'q': keyword,
+            'num': 3,
+            'dateRestrict': 'm1',
+            'lr': 'lang_ko' # 한국어 뉴스 중심
         }
-    ]
+        
+        response = requests.get(url, params=params)
+        
+        # 응답 상태 체크
+        if response.status_code != 200:
+            print(f"구글 검색 API 에러: {response.text}")
+            raise Exception("API Error")
+
+        data = response.json()
+        results = []
+        
+        if 'items' in data:
+            for item in data['items']:
+                results.append({
+                    "title": item['title'],
+                    "url": item['link'],  # ★ 여기가 바로 '기사 원문 주소'입니다!
+                    "snippet": item.get('snippet', '내용 요약 없음').replace('\n', '')
+                })
+        
+        return results
+
+    except Exception as e:
+        print(f"외부 검색 실패: {e}")
+        # 실패 시 구글 검색 링크로 대체 (Fallback)
+        return [
+            {
+                "title": f"'{keyword}' 구글 검색 결과 보기",
+                "url": f"https://www.google.com/search?q={keyword}",
+                "snippet": "검색 정보를 가져오는 데 실패하여 검색 페이지로 연결합니다."
+            }
+        ]
 
 def recommend_external_articles(user):
     """
-    사용자의 최근 관심사를 분석하여 DB 밖의 새로운 글을 추천합니다.
+    [벡터 기반 알고리즘]
+    사용자의 전체 관심사 벡터의 평균(Centroid)을 구하고,
+    그 중심에 가장 가까운 '대표 기사'를 찾아 외부 검색 키워드를 추출합니다.
     """
-    # 1. 최근 읽은 기사 5개 가져오기
-    recent_articles = Article.objects.filter(user=user).order_by('-created_at')[:5]
     
-    if not recent_articles.exists():
-        # 기사가 하나도 없으면 'IT 트렌드' 같은 일반적인 거 리턴
+    # 1. 사용자가 저장한 기사들의 벡터 가져오기
+    saved_articles = Article.objects.filter(user=user, status=Article.Status.SAVED)
+    
+    if not saved_articles.exists():
+        # 저장된 기사가 없으면 기본값
         return {"keyword": "최신 IT 트렌드", "items": []}
 
-    recent_text = " ".join([a.title for a in recent_articles])
+    # 2. 사용자 페르소나 벡터(평균 벡터) 계산
+    # 모든 기사의 임베딩을 가져와서 numpy로 평균을 냅니다.
+    embeddings = [np.array(a.embedding) for a in saved_articles if a.embedding is not None]
     
-    # ★ [디버깅용] 콘솔에 AI한테 뭘 보냈는지 찍어보기
-    print(f"DEBUG: AI에게 보낸 기사 제목들 -> {recent_text}")
+    if not embeddings:
+        return {"keyword": "일반 뉴스", "items": []}
 
-    # 2. GPT 프롬프트 수정 (창의성 억제, 직관적 키워드 유도)
-    keyword_prompt = f"""
-    사용자가 최근 읽은 기사 제목들이다: "{recent_text}"
+    # 축(axis=0)을 기준으로 평균을 구함 -> [0.1, 0.2, ...] 하나의 벡터가 됨
+    user_persona_vector = np.mean(embeddings, axis=0).tolist()
+
+    # 3. 평균 벡터와 가장 유사한 '나의 대표 기사' 1개 찾기
+    # (내 서재 전체에서 이 평균 벡터와 거리가 가장 가까운 녀석을 찾음)
+    representative_article = Article.objects.filter(user=user).annotate(
+        distance=CosineDistance('embedding', user_persona_vector)
+    ).order_by('distance').first()
+
+    # 4. GPT에게 키워드 추출 요청 (대표 기사 기반)
+    prompt = f"""
+    이 기사는 사용자의 전체 관심사를 통계적으로 대표하는 글이다.
     
-    이 제목들을 관통하는 **가장 핵심적인 공통 키워드** 1개를 명사로 추출해.
-    절대로 제목에 없는 내용을 추론하거나 상상하지 마.
-    있는 그대로의 사실에 기반한 키워드여야 해.
-    (예시: 반도체, 선거, 인공지능, 부동산)
+    [제목]: {representative_article.title}
+    [요약]: {representative_article.summary}
+    
+    위 내용을 바탕으로, 이 사용자가 인터넷에서 검색해볼 만한 '심화 탐구 주제'를 
+    가장 잘 나타내는 **검색 키워드 1개(명사)**만 추출해.
+    추상적인 단어보다는 구체적인 기술명이나 현상 이름을 선호해.
+    (예: 생성형 AI, 자율주행, 금리 인하, 양자 역학)
     """
     
-    # temperature=0.3 으로 낮춰서 창의성을 죽임 (사실 기반)
-    keyword = get_completion(keyword_prompt).strip()
+    # 창의성을 낮춰서(0.3) 정확한 키워드 유도
+    keyword = get_completion(prompt, temperature=0.3).strip()
     
-    # 3. 외부 검색 수행
+    # 5. 외부 검색 수행 (이전과 동일)
     search_results = search_web_for_articles(keyword)
     
-    # 4. RAG: 검색 결과 추천 멘트 작성
+    # 6. 추천 멘트 생성
     recommendations = []
     for item in search_results:
         reco_prompt = f"""
-        사용자 관심 키워드: {keyword}
+        사용자 관심사 중심 키워드: {keyword}
         발견한 외부 기사: {item['title']} - {item['snippet']}
         
-        이 기사를 추천하는 이유를 한 문장으로 써줘. (친절하게)
+        이 기사를 추천하는 이유를 한 문장으로 써줘.
         """
         reason = get_completion(reco_prompt)
         recommendations.append({
