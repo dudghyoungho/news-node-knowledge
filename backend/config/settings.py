@@ -146,3 +146,13 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
+
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = 'static/'
+
+# ★ 이 설정이 없다면 추가해 주세요 (개발 단계에서 앱별 static 폴더 찾기 위함)
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]

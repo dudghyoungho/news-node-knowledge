@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -5,48 +6,7 @@
     <title>My Knowledge Universe</title>
     <script src="//unpkg.com/d3"></script>
     <script src="//unpkg.com/force-graph"></script>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000011; color: white; font-family: 'Apple SD Gothic Neo', sans-serif; }
-        #graph-container { width: 100vw; height: 100vh; }
-        
-        .controls { position: absolute; top: 20px; left: 20px; z-index: 99; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(5px); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); pointer-events: none; }
-        h1 { margin: 0 0 10px 0; font-size: 16px; color: #74b9ff; font-weight: bold; }
-        p { margin: 5px 0 0; font-size: 12px; color: #ddd; }
-        
-        #empty-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #888; display: none; }
-
-        /* 팝업 모달 스타일 */
-        .modal-overlay {
-            display: none; 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6); 
-            z-index: 1000;
-            backdrop-filter: blur(3px); 
-        }
-        .modal-content {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 400px; max-width: 90%;
-            background: rgba(30, 39, 46, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            color: #fff;
-        }
-        .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
-        .modal-title { font-size: 18px; font-weight: bold; color: #74b9ff; line-height: 1.4; width: 90%; }
-        .close-btn { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; line-height: 1; }
-        .close-btn:hover { color: #fff; }
-        .modal-body { font-size: 14px; line-height: 1.6; color: #dfe6e9; margin-bottom: 20px; white-space: pre-line; max-height: 300px; overflow-y: auto; }
-        .modal-footer { text-align: right; }
-        .btn-link {
-            background: #0984e3; color: white; border: none; padding: 10px 20px;
-            border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;
-            transition: 0.2s;
-        }
-        .btn-link:hover { background: #74b9ff; }
-
-    </style>
+    <link rel="stylesheet" href="{% static 'news/css/graph.css' %}">
 </head>
 <body>
 
@@ -65,8 +25,11 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div id="modal-title" class="modal-title">기사 제목</div>
-                <button class="close-btn" onclick="closeModal()">×</button>
+                <button class="close-btn">×</button>
             </div>
+            
+            <img id="modal-img" class="modal-img" src="" alt="기사 썸네일">
+
             <div id="modal-summary" class="modal-body">
                 여기에 3줄 요약 내용이 들어갑니다...
             </div>
@@ -78,122 +41,6 @@
 
     <div id="graph-container"></div>
 
-    <script>
-        const elem = document.getElementById('graph-container');
-        const emptyMsg = document.getElementById('empty-message');
-        
-        // 모달 관련
-        const modal = document.getElementById('summary-modal');
-        const modalTitle = document.getElementById('modal-title');
-        const modalSummary = document.getElementById('modal-summary');
-        const btnGoArticle = document.getElementById('btn-go-article');
-        let currentLink = "";
-
-        const Graph = ForceGraph()(elem)
-            .backgroundColor('#000011')
-            .nodeId('id')
-            .nodeLabel('name')
-            .nodeVal('val')
-            .linkColor(() => 'rgba(255,255,255,0.2)')
-            .linkWidth(1.5)
-            
-            // ★ [핵심] 노드 그리기 (이미지 vs 색상)
-            .nodeCanvasObject((node, ctx, globalScale) => {
-                // 크기 설정 (기존 2배 -> 5배로 키움)
-                const radius = Math.sqrt(node.val) * 5; 
-                const fontSize = 12 / globalScale;
-
-                // 1. 노드 그리기 (이미지 또는 원)
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-
-                // 이미지가 있고, 로딩이 완료된 상태라면?
-                if (node.imgObj) {
-                    ctx.save(); // 현재 상태 저장
-                    ctx.clip(); // 방금 그린 원 모양으로 자르기(Clipping)
-                    
-                    // 이미지를 원 안에 꽉 차게 그리기
-                    ctx.drawImage(node.imgObj, node.x - radius, node.y - radius, radius * 2, radius * 2);
-                    
-                    ctx.restore(); // 자르기 해제 (다음 그림을 위해)
-                    
-                    // 테두리 추가 (이미지가 어두우면 배경과 섞이므로)
-                    ctx.beginPath();
-                    ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1.5 / globalScale;
-                    ctx.stroke();
-
-                } else {
-                    // 이미지가 없으면 기존처럼 색깔 원 그리기
-                    const color = node.group === 2 ? '#ff7675' : '#0984e3'; 
-                    ctx.fillStyle = color;
-                    ctx.fill();
-                }
-
-                // 2. 텍스트 그리기 (글자)
-                if (globalScale > 0.6) {
-                    ctx.font = `${fontSize}px Sans-Serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    
-                    // 텍스트는 그림 아래에 배치
-                    ctx.fillText(node.name, node.x, node.y + radius + (fontSize/2) + 4);
-                }
-            })
-            // 마우스 호버/클릭 영역 설정
-            .nodePointerAreaPaint((node, color, ctx) => {
-                const radius = Math.sqrt(node.val) * 5; 
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, radius + 2, 0, 2 * Math.PI, false); 
-                ctx.fill();
-            })
-            .d3Force('charge', d3.forceManyBody().strength(-100)) // 척력 강화
-            .d3Force('link', d3.forceLink().distance(80).id(d => d.id)) // 거리 넓힘
-            .onNodeClick(node => {
-                if (node.group === 1) { openModal(node); } 
-                else { Graph.centerAt(node.x, node.y, 1000); Graph.zoom(4, 2000); }
-            });
-
-        // 데이터 Fetch 및 이미지 사전 로딩
-        fetch('/api/news/api/graph/')
-            .then(res => res.json())
-            .then(data => {
-                if (data.nodes.length === 0) {
-                    emptyMsg.style.display = 'block';
-                } else {
-                    emptyMsg.style.display = 'none';
-
-                    // ★ [핵심] 이미지 사전 로딩 (Pre-loading)
-                    // 데이터를 받자마자 이미지 객체를 미리 만들어둡니다.
-                    data.nodes.forEach(node => {
-                        if (node.img) {
-                            const img = new Image();
-                            img.src = node.img;
-                            // 이미지가 로딩되면 node 객체에 저장해둠 -> nodeCanvasObject에서 갖다 씀
-                            img.onload = () => { node.imgObj = img; }; 
-                        }
-                    });
-
-                    Graph.graphData(data);
-                    setTimeout(() => Graph.zoomToFit(500, 50), 200);
-                }
-            })
-            .catch(err => console.error(err));
-
-        // 모달 관련 함수들 (기존 유지)
-        function openModal(node) {
-            modalTitle.innerText = node.name;
-            modalSummary.innerText = node.summary || "요약 내용이 없습니다.";
-            currentLink = node.url; 
-            modal.style.display = 'block';
-        }
-        function closeModal() { modal.style.display = 'none'; }
-        btnGoArticle.addEventListener('click', () => { if (currentLink) window.open(currentLink, '_blank'); });
-        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-    </script>
+    <script src="{% static 'news/js/graph.js' %}"></script>
 </body>
 </html>
