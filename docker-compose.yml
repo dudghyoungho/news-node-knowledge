@@ -4,17 +4,21 @@ services:
   # 1. Django 웹 서버 (Gunicorn 사용)
   web:
     build: .
-    # [변경] runserver 대신 gunicorn 사용
-    # 주의: backend 폴더 안에 config 폴더가 있는 구조라면 아래 경로가 맞습니다.
     command: gunicorn --bind 0.0.0.0:8000 --chdir backend config.wsgi:application
     volumes:
       - .:/app
-      - static_volume:/app/static  # Nginx와 공유할 정적 파일
-      - media_volume:/app/media    # Nginx와 공유할 미디어 파일
+      - static_volume:/app/static
+      - media_volume:/app/media
     expose:
-      - 8000  # 외부에는 노출하지 않고 Nginx에게만 열어줌
+      - 8000
     env_file:
       - .env
+    # [추가] 환경변수를 명시적으로 주입합니다.
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
     depends_on:
       - db
       - redis
