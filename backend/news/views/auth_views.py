@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from rest_framework import status
 
+from django.shortcuts import render, redirect
+from django.contrib.auth import login
+
 User = get_user_model()
 
 @api_view(['POST'])
@@ -42,3 +45,4 @@ def google_login(request):
         'username': user.username,
         'message': '로그인 성공'
     })
+

@@ -1,6 +1,6 @@
 // Django 서버 주소 (urls.py 설정에 맞춰 수정)
 // 예: path('api/news/', include('news.urls')) 인 경우 아래와 같음
-const SERVER_URL = "http://localhost:8000/api/news"; 
+const SERVER_URL = "http://43.203.231.70"; 
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM 요소 가져오기
@@ -76,9 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMsg.textContent = "서버 로그인 중...";
 
             // 2. Django 서버로 구글 토큰 전송 -> DRF 토큰 발급 요청
-            fetch(`${SERVER_URL}/auth/google/`, {
+            fetch(`${SERVER_URL}/api/news/auth/google/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json' 
+                    // Authorization 헤더 삭제 (로그인은 인증 없이 접근 가능해야 함)
+                },
                 body: JSON.stringify({ access_token: token })
             })
             .then(res => {
@@ -140,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMsg.textContent = "AI가 기사를 읽고 있습니다...";
 
             // 서버 요청 (헤더에 토큰 포함!)
-            const response = await fetch(`${SERVER_URL}/summarize/`, {
+            const response = await fetch(`${SERVER_URL}/api/news/summarize/`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -211,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const finalSummary = summaryBox.textContent;
 
         try {
-            const response = await fetch(`${SERVER_URL}/save/`, {
+            const response = await fetch(`${SERVER_URL}/api/news/save/`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -248,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // URL 생성
-            const targetUrl = `${SERVER_URL}/dashboard/?token=${userToken}`;
+            const targetUrl = `${SERVER_URL}/api/news/dashboard/?token=${userToken}`;
             console.log("이동할 URL:", targetUrl); // ★ URL 뒤에 토큰이 잘 붙었는지 확인
 
             // 새 탭 열기
