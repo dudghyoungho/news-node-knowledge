@@ -10,7 +10,7 @@
       "storage"
     ],
     "oauth2": {
-      "client_id": "864172845170-6vvg9dvgbtlqm0r8uc7d39jg9skk176p.apps.googleusercontent.com",
+      "client_id": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com",
       "scopes": [
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile"

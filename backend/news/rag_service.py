@@ -1,227 +1,322 @@
 import os
+import requests
+import logging
+import re
+import html
 import random
+import numpy as np
 from datetime import timedelta
 from django.utils import timezone
-from pgvector.django import CosineDistance
+from openai import OpenAI
 from .models import Article
-from .ai_service import get_embedding, get_completion
-import requests
 
-import numpy as np
-from django.db.models import F
+# 로거 설정 (강제로 출력하도록 설정)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ---------------------------------------------------------
-# 1. 맥락 연결 (Context Connection)
+# 1. [Helper] HTML 태그 제거
 # ---------------------------------------------------------
-def find_connected_articles(current_article):
-    """
-    현재 기사와 가장 유사한 과거 기사를 찾고, 연결 고리(멘트)를 생성합니다.
-    """
-    # 1. 유사도 검색 (본인은 제외)
-    similar_articles = Article.objects.annotate(
-        distance=CosineDistance('embedding', current_article.embedding)
-    ).exclude(id=current_article.id).order_by('distance')[:3] # 상위 3개
+def clean_html(raw_html):
+    if not raw_html:
+        return ""
+    cleanr = re.compile('<.*?>')
+    cleantext = re.sub(cleanr, '', raw_html)
+    return html.unescape(cleantext)
 
-    if not similar_articles:
+# ---------------------------------------------------------
+# 2. [Search] 네이버 뉴스 검색 API (디버깅 강화)
+# ---------------------------------------------------------
+def search_articles(keyword):
+    """
+    [수정됨] 네이버 뉴스 포털(news.naver.com) 링크가 있는 기사만 골라냅니다.
+    -> AI 요약 및 크롤링 용이성 확보
+    """
+    client_id = os.getenv("NAVER_CLIENT_ID")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        logger.error("🚨 네이버 API 키 누락")
         return []
 
-    results = []
-    for old_article in similar_articles:
-        # 2. GPT에게 연결 고리 설명 요청 (RAG Generation)
-        prompt = f"""
-        너는 사용자의 지식 사서야. 
-        사용자가 방금 [새 기사]를 읽었어. 그런데 서재에 [과거 기사]가 있네.
-        두 기사의 연관성을 1문장으로 흥미롭게 설명해줘.
-        
-        [새 기사]: {current_article.title} - {current_article.summary[:100]}...
-        [과거 기사] (저장일: {old_article.created_at.date()}): {old_article.title} - {old_article.summary[:100]}...
-        
-        형식: "💡 과거의 맥락: [설명]"
-        """
-        
-        comment = get_completion(prompt)
-        
-        results.append({
-            "id": old_article.id,
-            "title": old_article.title,
-            "date": old_article.created_at.strftime('%Y-%m-%d'),
-            "comment": comment
-        })
-        
-    return results
-
-# ---------------------------------------------------------
-# 2. 지식 복기 (Review Mode) - ★ 이 부분이 누락되었었습니다
-# ---------------------------------------------------------
-def review_past_knowledge(user):
-    """
-    오래된 기사를 하나 뽑아서 '복기' 멘트를 생성합니다.
-    """
-    # 3개월(90일) 이상 된 기사 중 하나 랜덤 선택 (데이터가 없으면 7일로 완화)
-    threshold_date = timezone.now() - timedelta(days=90)
-    old_articles = Article.objects.filter(user=user, created_at__lte=threshold_date)
-    
-    # 만약 너무 오래된 글이 없으면, 일주일 전 글이라도 가져옴
-    if not old_articles.exists():
-        threshold_date = timezone.now() - timedelta(days=7)
-        old_articles = Article.objects.filter(user=user, created_at__lte=threshold_date)
-
-    if not old_articles.exists():
-        return None
-
-    target_article = random.choice(list(old_articles))
-
-    prompt = f"""
-    이 기사는 사용자가 {target_article.created_at.date()}에 저장한 글이야.
-    시간이 지난 지금 시점에서, 이 기사를 다시 읽어야 할 이유를 '질문' 형태로 던져줘.
-    예측이 맞았는지 확인하거나, 당시의 상황과 지금을 비교해보라는 식으로 유도해.
-    
-    [기사 제목]: {target_article.title}
-    [기사 요약]: {target_article.summary}
-    """
-    
-    review_comment = get_completion(prompt)
-    
-    return {
-        "article": target_article,
-        "comment": review_comment
+    url = "https://openapi.naver.com/v1/search/news.json"
+    headers = {
+        "X-Naver-Client-Id": client_id,
+        "X-Naver-Client-Secret": client_secret
     }
-
-# ---------------------------------------------------------
-# 3. 외부 확장 (External Discovery)
-# ---------------------------------------------------------
-def search_web_for_articles(keyword):
-    """
-    Google Custom Search API를 사용하여 실제 기사 원문 링크를 가져옵니다.
-    """
-    # ★ 수정된 안전한 체크 로직
-    # 키가 아예 없거나(None), 빈 문자열이거나, 초기값이 들어있는 경우 체크
-    is_invalid_key = (
-        GOOGLE_API_KEY is None or 
-        GOOGLE_API_KEY == "" or 
-        "발급받은" in GOOGLE_API_KEY
-    )
-
-    if is_invalid_key: 
-        return [
-            {
-                "title": f"[Demo] '{keyword}' 관련 기사 (API 키 설정 필요)",
-                "url": f"https://www.google.com/search?q={keyword}",
-                "snippet": ".env 파일에 구글 API 키를 설정하면 실제 기사 원문으로 연결됩니다."
-            }
-        ]
+    
+    # [변경점 1] 필터링을 위해 넉넉하게 10개를 가져옵니다.
+    params = {"query": keyword, "display": 10, "start": 1, "sort": "sim"}
 
     try:
-        url = "https://www.googleapis.com/customsearch/v1"
-        params = {
-            'key': GOOGLE_API_KEY,
-            'cx': GOOGLE_SEARCH_CX,
-            'q': keyword,
-            'num': 3,
-            'dateRestrict': 'm1',
-            'lr': 'lang_ko' # 한국어 뉴스 중심
-        }
-        
-        response = requests.get(url, params=params)
-        
-        # 응답 상태 체크
-        if response.status_code != 200:
-            print(f"구글 검색 API 에러: {response.text}")
-            raise Exception("API Error")
-
+        response = requests.get(url, headers=headers, params=params)
         data = response.json()
+        items = data.get("items", [])
+        
         results = []
-        
-        if 'items' in data:
-            for item in data['items']:
-                results.append({
-                    "title": item['title'],
-                    "url": item['link'],  # ★ 여기가 바로 '기사 원문 주소'입니다!
-                    "snippet": item.get('snippet', '내용 요약 없음').replace('\n', '')
-                })
-        
+        for item in items:
+            # 네이버 뉴스 링크 필드
+            naver_link = item.get("link", "")
+            
+            # [변경점 2] ★ 핵심 필터링 로직 ★
+            # 링크에 'news.naver.com'이나 'sports.news.naver.com' 등이 없으면 버립니다.
+            if "news.naver.com" not in naver_link:
+                continue
+
+            # 1. 네이버 데이터 정제
+            title = clean_html(item.get("title", ""))
+            desc = clean_html(item.get("description", ""))
+            pub_date = item.get("pubDate", "")
+
+            results.append({
+                "title": title,
+                "summary": desc,       
+                "snippet": desc,
+                "description": desc,
+                "reason": desc,
+                
+                # 원문 링크 대신 '네이버 뉴스 링크'를 무조건 사용
+                "url": naver_link,
+                "link": naver_link,
+                
+                "img": "", 
+                "thumbnail": "",
+                "source": "Naver News", # 이제 진짜 네이버 뉴스임
+                "date": pub_date
+            })
+
+            # 키워드 당 1~2개만 필요하다면 여기서 break 해도 되지만,
+            # search_articles 함수 자체는 리스트를 반환하고, 
+            # 호출하는 쪽에서 1개를 고르는 게 낫습니다.
+
         return results
 
     except Exception as e:
-        print(f"외부 검색 실패: {e}")
-        # 실패 시 구글 검색 링크로 대체 (Fallback)
-        return [
-            {
-                "title": f"'{keyword}' 구글 검색 결과 보기",
-                "url": f"https://www.google.com/search?q={keyword}",
-                "snippet": "검색 정보를 가져오는 데 실패하여 검색 페이지로 연결합니다."
-            }
-        ]
+        logger.error(f"네이버 검색 오류: {e}")
+        return []
 
+# ---------------------------------------------------------
+# 3. [Feature] 외부 기사 추천 (안전장치 포함)
+# ---------------------------------------------------------
 def recommend_external_articles(user):
     """
-    [벡터 기반 알고리즘]
-    사용자의 전체 관심사 벡터의 평균(Centroid)을 구하고,
-    그 중심에 가장 가까운 '대표 기사'를 찾아 외부 검색 키워드를 추출합니다.
+    [수정됨] 주제 중복을 피하기 위해 '3개의 서로 다른 키워드'를 뽑아
+    각각 1개씩 베스트 기사를 가져오는 다양성 확보 로직
     """
+    recent_articles = Article.objects.filter(user=user).order_by('-created_at')[:10] # 범위를 좀 늘림
     
-    # 1. 사용자가 저장한 기사들의 벡터 가져오기
-    saved_articles = Article.objects.filter(user=user, status=Article.Status.SAVED)
-    
-    if not saved_articles.exists():
-        # 저장된 기사가 없으면 기본값
-        return {"keyword": "최신 IT 트렌드", "items": []}
+    # 기본 키워드 세트 (읽은 글이 없을 경우 대비)
+    keywords = ["IT 트렌드", "국제 경제", "최신 과학 기술"] 
 
-    # 2. 사용자 페르소나 벡터(평균 벡터) 계산
-    # 모든 기사의 임베딩을 가져와서 numpy로 평균을 냅니다.
-    embeddings = [np.array(a.embedding) for a in saved_articles if a.embedding is not None]
-    
-    if not embeddings:
-        return {"keyword": "일반 뉴스", "items": []}
+    # 1. LLM에게 서로 다른 3가지 주제의 키워드 요청
+    if recent_articles.exists():
+        titles = ", ".join([a.title for a in recent_articles])
+        try:
+            prompt = f"""
+            사용자가 최근 읽은 뉴스 제목들이야: [{titles}]
+            
+            이 사용자의 관심사를 넓힐 수 있는 '서로 다른 주제'의 검색 키워드 3개를 추천해줘.
+            
+            [조건]
+            1. 3개의 키워드는 서로 겹치지 않는 분야여야 함. (예: 반도체, 부동산, 유럽여행)
+            2. 콤마(,)로만 구분해서 단어 3개만 딱 출력해. 설명 금지.
+            """
+            response = get_completion(prompt).strip()
+            # 콤마로 분리하여 리스트로 만듦
+            keywords = [k.strip().replace('"', '').replace("'", "") for k in response.split(',')]
+        except Exception as e:
+            logger.error(f"키워드 생성 실패: {e}")
+            keywords = ["주요 뉴스", "테크", "경제"]
 
-    # 축(axis=0)을 기준으로 평균을 구함 -> [0.1, 0.2, ...] 하나의 벡터가 됨
-    user_persona_vector = np.mean(embeddings, axis=0).tolist()
+    # 만약 키워드가 3개 미만이면 기본값으로 채움
+    while len(keywords) < 3:
+        keywords.append("주요 뉴스")
 
-    # 3. 평균 벡터와 가장 유사한 '나의 대표 기사' 1개 찾기
-    # (내 서재 전체에서 이 평균 벡터와 거리가 가장 가까운 녀석을 찾음)
-    representative_article = Article.objects.filter(user=user).annotate(
-        distance=CosineDistance('embedding', user_persona_vector)
-    ).order_by('distance').first()
+    # 3개까지만 사용
+    keywords = keywords[:3]
+    logger.info(f"🤖 다양성 확보를 위한 키워드 3대장: {keywords}")
 
-    # 4. GPT에게 키워드 추출 요청 (대표 기사 기반)
-    prompt = f"""
-    이 기사는 사용자의 전체 관심사를 통계적으로 대표하는 글이다.
-    
-    [제목]: {representative_article.title}
-    [요약]: {representative_article.summary}
-    
-    위 내용을 바탕으로, 이 사용자가 인터넷에서 검색해볼 만한 '심화 탐구 주제'를 
-    가장 잘 나타내는 **검색 키워드 1개(명사)**만 추출해.
-    추상적인 단어보다는 구체적인 기술명이나 현상 이름을 선호해.
-    (예: 생성형 AI, 자율주행, 금리 인하, 양자 역학)
-    """
-    
-    # 창의성을 낮춰서(0.3) 정확한 키워드 유도
-    keyword = get_completion(prompt, temperature=0.3).strip()
-    
-    # 5. 외부 검색 수행 (이전과 동일)
-    search_results = search_web_for_articles(keyword)
-    
-    # 6. 추천 멘트 생성
-    recommendations = []
-    for item in search_results:
-        reco_prompt = f"""
-        사용자 관심사 중심 키워드: {keyword}
-        발견한 외부 기사: {item['title']} - {item['snippet']}
+    final_articles = []
+    seen_urls = set() # 중복 기사 방지용
+
+    # 2. 각 키워드별로 검색해서 '가장 정확한 1개'만 가져오기
+    for kw in keywords:
+        # 각 키워드로 2개씩만 검색 (혹시 1등이 중복일까봐 예비로 2개)
+        results = search_articles(kw) 
         
-        이 기사를 추천하는 이유를 한 문장으로 써줘.
-        """
-        reason = get_completion(reco_prompt)
-        recommendations.append({
-            "title": item['title'],
-            "url": item['url'],
-            "reason": reason
-        })
-        
+        for article in results:
+            # 이미 담은 기사(URL 기준)가 아니면 담고 break (키워드당 1개만)
+            if article['url'] not in seen_urls:
+                # 키워드 정보를 뱃지처럼 제목 앞에 살짝 추가해주면 더 좋음
+                article['keyword_label'] = kw 
+                final_articles.append(article)
+                seen_urls.add(article['url'])
+                break # 1개 담았으면 다음 키워드로 이동
+
+    # 3. 데이터 반환
     return {
-        "keyword": keyword,
-        "items": recommendations
+        "keyword": ", ".join(keywords), # 화면 표시용 (예: 반도체, 부동산, AI)
+        "articles": final_articles,
+        "items": final_articles
     }
+
+
+# ---------------------------------------------------------
+# (기존 유지) OpenAI 응답 생성
+# ---------------------------------------------------------
+def get_completion(prompt):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful news curator."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"OpenAI API 오류: {e}")
+        return ""
+
+# ---------------------------------------------------------
+# 4. [Feature] DB 내부 연관 기사 추천 (find_connected_articles)
+# ---------------------------------------------------------
+def find_connected_articles(target_article):
+    """
+    현재 읽는 기사와 유사한 내 서재의 기사를 찾습니다.
+    (벡터 유사도 기반)
+    """
+    # 임베딩이 없으면 추천 불가
+    if not target_article.embedding:
+        return []
+
+    # 내 서재의 다른 기사들 가져오기 (저장된 것만)
+    user_articles = Article.objects.filter(
+        user=target_article.user, 
+        status='saved'
+    ).exclude(id=target_article.id).exclude(embedding__isnull=True)
+
+    target_vec = np.array(target_article.embedding)
+    recommendations = []
+
+    for article in user_articles:
+        current_vec = np.array(article.embedding)
+        
+        # 코사인 유사도 계산
+        norm_a = np.linalg.norm(target_vec)
+        norm_b = np.linalg.norm(current_vec)
+        
+        if norm_a == 0 or norm_b == 0: continue
+        
+        similarity = np.dot(target_vec, current_vec) / (norm_a * norm_b)
+        
+        # 유사도 0.75 이상인 글만 추천
+        if similarity > 0.75: 
+            recommendations.append({
+                "id": article.id,
+                "title": article.title,
+                "similarity": round(float(similarity), 2)
+            })
+    
+    # 유사도 높은 순 정렬 후 상위 3개 반환
+    recommendations.sort(key=lambda x: x['similarity'], reverse=True)
+    return recommendations[:3]
+
+# ---------------------------------------------------------
+# 5. [Feature] 과거 기사 복기 (review_past_knowledge)
+# ---------------------------------------------------------
+def review_past_knowledge(user):
+    """
+    [Upgrade] 단순 회상이 아니라, 3가지 모드(퀴즈/토론/행동) 중 하나로 
+    지적 자극을 주는 고도화된 복기 로직
+    """
+    now = timezone.now()
+    threshold_time = now - timedelta(days=1) 
+
+    # 1. 대상 기사 선정 (SAVED 상태, 24시간 지난 것)
+    candidates = Article.objects.filter(
+        user=user, 
+        created_at__lte=threshold_time, 
+        status=Article.Status.SAVED
+    )
+    
+    # (Fallback) 없으면 전체 SAVED 기사 중 선택
+    if not candidates.exists():
+        candidates = Article.objects.filter(user=user, status=Article.Status.SAVED)
+
+    if not candidates.exists():
+        return {"message": "아직 서재가 비어있네요. 흥미로운 기사를 저장해보세요!"}
+
+    target = random.choice(list(candidates))
+
+    # 2. [핵심] 3가지 페르소나 중 랜덤 선택
+    modes = ["quiz", "debate", "action"]
+    selected_mode = random.choice(modes)
+    
+    logger.debug(f"🎲 선택된 복기 모드: {selected_mode}")
+
+    # 3. 모드별 프롬프트 분기
+    if selected_mode == "quiz":
+        # 기억력 테스트 모드
+        system_role = "너는 날카로운 퀴즈 출제자야."
+        instruction = f"""
+        사용자가 과거에 읽은 이 기사의 핵심 내용에 대해 'OX 퀴즈' 혹은 '짧은 객관식 퀴즈'를 하나만 내줘.
+        정답은 알려주지 말고, 사용자가 스스로 생각하게 만들어.
+        문체: 도전적이고 위트 있게.
+        """
+        
+    elif selected_mode == "debate":
+        # 비판적 사고 모드 (악마의 대변인)
+        system_role = "너는 비판적 사고를 돕는 토론 파트너야."
+        instruction = f"""
+        이 기사의 핵심 주장을 파악하고, 그에 대한 '반대 의견'이나 '생각해볼 만한 딜레마'를 질문으로 던져줘.
+        사용자가 이 주제를 다각도로 보게 만드는 것이 목표야.
+        문체: 진지하고 철학적으로.
+        """
+        
+    else: # action
+        # 실천 유도 모드
+        system_role = "너는 성장을 돕는 라이프 코치야."
+        instruction = f"""
+        이 기사의 내용을 실제 삶이나 업무에 적용할 수 있는 '구체적인 질문'을 던져줘.
+        예: "이 내용을 바탕으로 이번 주에 시도해본 것이 있나요?"
+        문체: 부드럽고 격려하는 어조로.
+        """
+
+    # 4. LLM 호출
+    try:
+        full_prompt = f"""
+        [기사 정보]
+        제목: {target.title}
+        요약: {target.summary}
+        
+        [지시사항]
+        {instruction}
+        
+        조건: 
+        1. 질문은 딱 한 문장~두 문장으로 짧게.
+        2. 기사 내용을 모르면 답할 수 없게 구체적으로.
+        """
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_role},
+                {"role": "user", "content": full_prompt}
+            ],
+            temperature=0.8, # 창의성을 위해 온도를 약간 높임
+        )
+        comment = response.choices[0].message.content
+        
+        # 모드에 따른 이모지 추가
+        prefix = {"quiz": "🧩 [퀴즈] ", "debate": "⚖️ [생각] ", "action": "🚀 [실천] "}
+        comment = prefix[selected_mode] + comment
+
+    except Exception as e:
+        logger.error(f"복기 생성 실패: {e}")
+        comment = "이 기사의 내용, 기억나시나요?"
+    
+    return {"article": target, "comment": comment}

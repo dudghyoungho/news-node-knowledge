@@ -20,13 +20,21 @@ def context_recommendation(request, article_id):
 def review_recommendation(request):
     """과거의 글 복기 추천 (대시보드용)"""
     data = review_past_knowledge(request.user)
-    if not data:
-        return Response({"message": "복기할 만큼 오래된 기사가 없습니다."})
     
+    # 1. 데이터가 아예 없는 경우 (None)
+    if not data:
+        return Response({"message": "저장된 기사가 없습니다."})
+
+    # 2. [수정됨] 서비스가 기사 대신 '안내 메시지'를 보낸 경우 처리
+    if 'message' in data:
+        return Response(data) # {"message": "아직 24시간이..."} 그대로 프론트로 전달
+
+    # 3. 정상적으로 기사가 반환된 경우
     return Response({
         "id": data['article'].id,
         "title": data['article'].title,
         "date": data['article'].created_at.strftime('%Y-%m-%d'),
+        "url": data['article'].url,
         "comment": data['comment']
     })
 

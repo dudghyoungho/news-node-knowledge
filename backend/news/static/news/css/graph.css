@@ -49,3 +49,5 @@ p { margin: 5px 0 0; font-size: 12px; color: #ddd; }
     transition: 0.2s;
 }
 .btn-link:hover { background: #74b9ff; }
+
+.clickable { cursor: pointer; }
