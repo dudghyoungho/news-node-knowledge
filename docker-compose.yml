@@ -1,19 +1,39 @@
+version: '3.8'
+
 services:
+  # 1. Django 웹 서버 (Gunicorn 사용)
   web:
     build: .
-    depends_on:
-      - db
-    command: python backend/manage.py runserver 0.0.0.0:8000
+    # [변경] runserver 대신 gunicorn 사용
+    # 주의: backend 폴더 안에 config 폴더가 있는 구조라면 아래 경로가 맞습니다.
+    command: gunicorn --bind 0.0.0.0:8000 backend.config.wsgi:application
     volumes:
       - .:/app
-    ports:
-      - "8000:8000"
+      - static_volume:/app/static  # Nginx와 공유할 정적 파일
+      - media_volume:/app/media    # Nginx와 공유할 미디어 파일
+    expose:
+      - 8000  # 외부에는 노출하지 않고 Nginx에게만 열어줌
     env_file:
       - .env
+    depends_on:
+      - db
+      - redis
 
+  # 2. 웹 서버 (Nginx) - 문지기 역할
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"  # 실제 사용자가 접속할 포트
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_volume:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web
 
+  # 3. 데이터베이스 (Vector DB 유지)
   db:
-    image: ankane/pgvector:latest
+    image: ankane/pgvector:latest  # ★ 기존에 쓰시던 pgvector 유지 (중요)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -23,5 +43,24 @@ services:
     ports:
       - "5432:5432"
 
+  # 4. Redis (Celery 및 캐싱용)
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+
+  # 5. (선택사항) Celery 워커 - 비동기 작업이 필요하다면 주석 해제
+  # celery:
+  #   build: .
+  #   command: celery -A backend.config worker -l info
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - db
+  #     - redis
+  #     - web
+
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:
