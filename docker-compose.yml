@@ -6,7 +6,7 @@ services:
     build: .
     # [변경] runserver 대신 gunicorn 사용
     # 주의: backend 폴더 안에 config 폴더가 있는 구조라면 아래 경로가 맞습니다.
-    command: gunicorn --bind 0.0.0.0:8000 backend.config.wsgi:application
+    command: gunicorn --bind 0.0.0.0:8000 --chdir backend config.wsgi:application
     volumes:
       - .:/app
       - static_volume:/app/static  # Nginx와 공유할 정적 파일

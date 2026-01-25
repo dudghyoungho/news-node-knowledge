@@ -72,14 +72,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'news_db'),
-        'USER': os.environ.get('POSTGRES_USER', 'postgres'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
-        'HOST': 'db',  # docker-compose 서비스명
+        'NAME': os.environ.get('DB_NAME', 'news_db'),       # 변경
+        'USER': os.environ.get('DB_USER', 'postgres'),       # 변경
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'), # 변경
+        'HOST': os.environ.get('DB_HOST', 'db'),             # 변경 (유연하게)
         'PORT': '5432',
     }
 }
@@ -133,10 +132,11 @@ REST_FRAMEWORK = {
 # [API Keys]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# [Security - CSRF]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://43.203.231.70",  # ★ 본인의 Lightsail 공인 IP 추가
+    "https://43.203.231.70", # 혹시 모를 HTTPS 대비
 ]
 
 # [Security - CORS] ★ 크롬 익스텐션용 필수 설정
