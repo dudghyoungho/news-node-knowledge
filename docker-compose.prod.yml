@@ -31,7 +31,7 @@ services:
     volumes:
       # [수정] nginx 폴더가 backend 안에 있다면 아래 경로가 맞음. 
       # 만약 루트에 nginx 폴더가 있다면 ./nginx/nginx.conf로 변경하세요.
-      - ./backend/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
       - static_volume:/app/static # Nginx는 내부적으로 이 경로를 참조 (nginx.conf alias와 일치)
       - media_volume:/app/media
     depends_on:
