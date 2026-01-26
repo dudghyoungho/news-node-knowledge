@@ -161,35 +161,42 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // ============================================
-    // Load Stats Function
+    // Load Stats Function (수정됨)
     // ============================================
     function loadStatsData() {
         if (!document.getElementById('weeklyChart')) return; 
 
-        // [수정] 통계 API 경로 수정 및 Region 파라미터 추가
-        // 주의: backend urls.py 설정에 따라 경로는 '/api/news/dashboard/stats/' 일 수도 있음.
-        // 여기서는 가장 유력한 경로인 dashboard/stats/ 사용
-        fetch(`/api/news/dashboard/stats/?region=${currentRegion}`)
+        // 1. API 호출
+        fetch(`/api/news/stats/?region=${currentRegion}`)
             .then(res => res.json())
             .then(data => {
-                // 상단 통계 카드 업데이트
+                console.log("📊 API Data Received:", data); // [디버깅용] 콘솔에서 데이터 확인 가능
+
+                // 2. [수정] 전체 기사 수 매핑 (total_count -> total_articles)
                 if (document.getElementById('total-count')) {
-                    document.getElementById('total-count').innerText = data.total_count || 0;
+                    document.getElementById('total-count').innerText = data.total_articles || 0;
                 }
                 
-                // (선택사항) Persona 같은 필드가 백엔드에서 오는지 확인 필요
+                // 3. 페르소나 매핑
                 if(document.getElementById('user-persona') && data.persona) {
                     document.getElementById('user-persona').innerText = data.persona;
                 }
 
-                // 차트 데이터가 없으면 중단
-                if (!data.category_stats) return;
+                // 4. [수정] 차트 데이터 확인 (category_stats -> category_distribution)
+                // 백엔드가 보낸 키값은 'category_distribution' 입니다.
+                // 이 값이 없으면 여기서 함수가 멈춰서 차트가 안 그려졌던 것입니다.
+                if (!data.category_distribution) {
+                    console.log("❌ 카테고리 데이터가 없습니다.");
+                    return;
+                }
 
-                // 1. Weekly Chart (이건 데이터가 없다면 빈 배열 처리 필요)
-                // 현재 백엔드 stats_views.py에는 daily_activity를 주는 부분이 없었음.
-                // 만약 에러가 난다면 이 부분은 주석 처리하거나 백엔드에 추가해야 함.
+                // 5. Weekly Chart 그리기
                 if (data.daily_activity) {
                     const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+                    
+                    // 기존 차트가 있으면 삭제 (중복 렌더링 방지, 선택사항)
+                    // if (window.weeklyChartInstance) window.weeklyChartInstance.destroy();
+
                     new Chart(weeklyCtx, {
                         type: 'bar', 
                         data: {
@@ -214,9 +221,9 @@ document.addEventListener("DOMContentLoaded", function() {
                     });
                 }
 
-                // 2. Category Chart (핵심)
+                // 6. [수정] Category Chart 그리기 (category_stats -> category_distribution)
                 const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-                const categories = data.category_stats; // 백엔드 필드명: category_stats
+                const categories = data.category_distribution; // 여기가 핵심 수정 포인트입니다.
                 
                 new Chart(categoryCtx, {
                     type: 'doughnut',

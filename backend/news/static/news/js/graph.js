@@ -175,8 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // 3. 데이터 불러오기 (기존 동일)
-    fetch('/api/news/api/graph/')
-        .then(res => res.json())
+    const urlParams = new URLSearchParams(window.location.search);
+    fetch(`/api/news/graph/data/${window.location.search}`) 
+    .then(res => res.json())
         .then(data => {
             if (data.nodes.length === 0) {
                 emptyMsg.style.display = 'block';
