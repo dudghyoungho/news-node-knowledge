@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", function() {
     
     // ============================================
-    // 1. 사이드바 탭 전환 로직
+    // 1. Sidebar Tab Logic
     // ============================================
     const menuItems = document.querySelectorAll('.menu-item');
     const sections = document.querySelectorAll('.view-section');
@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", function() {
             
             const targetId = item.getAttribute('data-target');
             const targetSection = document.getElementById(targetId);
-            if(targetSection) targetSection.style.display = 'flex'; // CSS에 맞춰 flex로
+            if(targetSection) targetSection.style.display = 'flex'; 
 
             if (targetId === 'view-librarian' && !isLibrarianLoaded) {
                 loadLibrarianData();
@@ -27,15 +27,15 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     // ============================================
-    // 2. 기존 차트 로직 (My Knowledge)
+    // 2. Load Knowledge Stats
     // ============================================
     loadStatsData();
 
     // ============================================
-    // 3. RAG 데이터 로딩 로직 (My Librarian)
+    // 3. Load RAG Data (My Librarian)
     // ============================================
     function loadLibrarianData() {
-        // (1) 지식 타임캡슐 (Review) API 호출
+        // (1) Knowledge Time Capsule (Review)
         fetch('/api/news/api/rag/review/')
             .then(res => res.json())
             .then(data => {
@@ -46,11 +46,9 @@ document.addEventListener("DOMContentLoaded", function() {
                     return;
                 }
 
-                // [수정] 버튼 클릭 시 window.open으로 원문(data.url) 열기
-                // [수정] 텍스트 색상을 진한 회색(#2d3436)으로 변경하여 가독성 확보
                 container.innerHTML = `
                     <div style="font-size:12px; color:#00b894; margin-bottom:5px; font-weight:bold;">
-                        📅 ${data.date} 에 저장된 기억
+                        📅 Memory from ${data.date}
                     </div>
                     <div style="font-size:16px; font-weight:bold; color:#2d3436; margin-bottom:10px;">
                         ${data.title}
@@ -59,40 +57,39 @@ document.addEventListener("DOMContentLoaded", function() {
                         ${data.comment.replace(/\n/g, '<br>')}
                     </div>
                     <button class="btn-link" style="margin-top:15px; width:100%; text-align:center;" onclick="window.open('${data.url}', '_blank')">
-                        🔗 기사 원문 다시 읽기
+                        🔗 Read Original Article
                     </button>
                 `;
             })
             .catch(err => {
                 const container = document.getElementById('review-card');
-                if(container) container.innerHTML = `<p style="color:#b2bec3;">AI 연결 실패</p>`;
+                if(container) container.innerHTML = `<p style="color:#b2bec3;">Failed to connect to AI.</p>`;
             });
 
-        // (2) 지식 확장 (External) API 호출
+        // (2) Knowledge Expansion (External)
         fetch('/api/news/api/rag/external/')
         .then(res => res.json())
         .then(data => {
             const container = document.getElementById('external-list');
             const items = data.articles || []; 
-            const keyword = data.keyword || "주요 뉴스";
+            const keyword = data.keyword || "General News";
 
             if (items.length === 0) {
-                container.innerHTML = "<div style='padding:10px; color:#b2bec3; text-align:center;'>추천할 만한 기사를 찾지 못했습니다.</div>";
+                container.innerHTML = "<div style='padding:10px; color:#b2bec3; text-align:center;'>No recommendations found at the moment.</div>";
                 return;
             }
 
-            // [수정] 키워드 색상을 진하게 변경
             let html = `<div style="margin-bottom:15px; font-weight:bold; color:#0984e3; font-size:15px;">
-                            🛰️ AI 분석 키워드: <span style="color:#2d3436;">#${keyword}</span>
+                            🛰️ AI Keyword: <span style="color:#2d3436;">#${keyword}</span>
                         </div>`;
             
             items.forEach(item => {
                 const link = item.url || item.link || '#';
                 const title = item.title;
-                const summary = item.summary || item.snippet || "요약 내용이 없습니다.";
-                const source = item.source || "Naver News";
+                const summary = item.summary || item.snippet || "No summary available.";
+                const source = item.source || "News Source";
                 
-                let dateStr = "최신";
+                let dateStr = "Recent";
                 if (item.date) {
                     try {
                         const d = new Date(item.date);
@@ -100,10 +97,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     } catch(e) {}
                 }
 
-                // [디자인 대폭 수정] 
-                // 1. 배경을 흰색(#fff)으로 변경
-                // 2. 글씨색을 진한 회색(#2d3436)으로 변경
-                // 3. 테두리(border) 추가로 카드 느낌 강화
                 html += `
                     <div class="reco-item" onclick="window.open('${link}', '_blank')" 
                          style="cursor:pointer; margin-bottom:12px; padding:15px; background:#fff; border-radius:10px; border:1px solid #dfe6e9; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
@@ -127,30 +120,30 @@ document.addEventListener("DOMContentLoaded", function() {
             container.innerHTML = html;
         })
         .catch(err => {
-            console.error("추천 로딩 에러:", err);
+            console.error("Recommendation Error:", err);
             const container = document.getElementById('external-list');
-            if (container) container.innerHTML = `<div style="color:#ff7675;">데이터를 불러오지 못했습니다.</div>`;
+            if (container) container.innerHTML = `<div style="color:#ff7675;">Failed to load data.</div>`;
         });
     }
 
     // ============================================
-    // (기존) 통계 데이터 로드 함수
+    // Load Stats Function
     // ============================================
     function loadStatsData() {
-        if (!document.getElementById('weeklyChart')) return; // 차트 없으면 패스
+        if (!document.getElementById('weeklyChart')) return; 
 
         fetch('/api/news/api/stats/')
             .then(res => res.json())
             .then(data => {
-                document.getElementById('user-persona').innerText = data.persona || "지식 탐험가";
+                document.getElementById('user-persona').innerText = data.persona || "Knowledge Explorer";
 
                 const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
                 new Chart(weeklyCtx, {
-                    type: 'bar', // bar 차트 유지
+                    type: 'bar', 
                     data: {
                         labels: data.daily_activity.map(d => d.date),
                         datasets: [{
-                            label: '읽은 기사',
+                            label: 'Articles Read',
                             data: data.daily_activity.map(d => d.count),
                             backgroundColor: '#0984e3',
                             borderRadius: 4,
@@ -174,7 +167,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 new Chart(categoryCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: categories.map(c => c.category || '기타'),
+                        labels: categories.map(c => c.category || 'Others'),
                         datasets: [{
                             data: categories.map(c => c.count),
                             backgroundColor: [
