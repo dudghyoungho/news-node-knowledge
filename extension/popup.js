@@ -1,6 +1,6 @@
 // Django Server URL (Adjust based on your urls.py)
-const SERVER_URL = "http://127.0.0.1:8000"; //개발용
-//const SERVER_URL = "http://43.203.231.70"; //배포용
+//const SERVER_URL = "http://127.0.0.1:8000"; //개발용
+const SERVER_URL = "http://43.203.231.70"; //배포용
 
 
 document.addEventListener('DOMContentLoaded', () => {
