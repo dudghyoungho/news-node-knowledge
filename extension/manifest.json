@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Journal Journey - AI News Archiver",
+    "name": "News Node Knowledge - AI News Archiver",
     "version": "1.0",
-    "description": "네이버 뉴스를 AI로 요약하고 내 서재에 저장합니다.",
+    "description": "Summerize news with AI, Review in my Library.",
     "permissions": [
       "activeTab",
       "scripting",
@@ -22,7 +22,7 @@
     ],
     "action": {
       "default_popup": "popup.html",
-      "default_title": "기사 요약하기",
+      "default_title": "Summerize Article",
       "default_icon": {
           "16": "icon.png", 
           "48": "icon.png",
