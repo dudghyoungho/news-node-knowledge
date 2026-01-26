@@ -14,7 +14,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_page, name='dashboard'),
     path('graph/', views.graph_page, name='graph_view'),
 
-    path('api/rag/context/<int:article_id>/', views.context_recommendation, name='rag_context'),
-    path('api/rag/review/', views.review_recommendation, name='rag_review'),
-    path('api/rag/external/', views.external_recommendation, name='rag_external'),
+    path('rag/review/', views.review_recommendation, name='rag_review'),
+    path('rag/external/', views.external_recommendation, name='rag_external'),
+    path('rag/context/<int:article_id>/', views.context_recommendation, name='rag_context'),
 ]

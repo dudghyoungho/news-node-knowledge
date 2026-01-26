@@ -1,6 +1,35 @@
 document.addEventListener("DOMContentLoaded", function() {
     
     // ============================================
+    // 0. [Core] Region & URL Params Parsing
+    // ============================================
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentRegion = urlParams.get('region') || 'KR'; // 기본값 KR
+    
+    console.log(`🚀 Dashboard Initialized. Mode: ${currentRegion}`);
+
+    // UI 텍스트 언어팩 (간단한 로컬라이징)
+    const uiText = {
+        'KR': {
+            reviewTitle: "📅 과거의 기억",
+            readButton: "🔗 원문 읽기",
+            keywordLabel: "🛰️ AI 추천 키워드:",
+            noExternal: "추천할 외부 기사가 없습니다.",
+            hot: "인기",
+            source: "뉴스 출처"
+        },
+        'AU': {
+            reviewTitle: "📅 Memory from",
+            readButton: "🔗 Read Article",
+            keywordLabel: "🛰️ AI Keyword:",
+            noExternal: "No recommendations found.",
+            hot: "HOT",
+            source: "Source"
+        }
+    };
+    const textPack = uiText[currentRegion];
+
+    // ============================================
     // 1. Sidebar Tab Logic
     // ============================================
     const menuItems = document.querySelectorAll('.menu-item');
@@ -19,6 +48,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const targetSection = document.getElementById(targetId);
             if(targetSection) targetSection.style.display = 'flex'; 
 
+            // 'My Librarian' 탭을 처음 누를 때만 데이터를 로드 (트래픽 절약)
             if (targetId === 'view-librarian' && !isLibrarianLoaded) {
                 loadLibrarianData();
                 isLibrarianLoaded = true;
@@ -27,7 +57,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     // ============================================
-    // 2. Load Knowledge Stats
+    // 2. Load Knowledge Stats (Initial Load)
     // ============================================
     loadStatsData();
 
@@ -36,83 +66,87 @@ document.addEventListener("DOMContentLoaded", function() {
     // ============================================
     function loadLibrarianData() {
         // (1) Knowledge Time Capsule (Review)
-        fetch('/api/news/api/rag/review/')
+        // [수정] URL에 region 파라미터 추가
+        fetch(`/api/news/rag/review/?region=${currentRegion}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById('review-card');
                 
                 if (data.message) {
-                    container.innerHTML = `<p style="text-align:center; color:#636e72;">${data.message}</p>`;
+                    container.innerHTML = `<p style="text-align:center; color:#636e72; padding: 20px;">${data.message}</p>`;
                     return;
                 }
 
                 container.innerHTML = `
                     <div style="font-size:12px; color:#00b894; margin-bottom:5px; font-weight:bold;">
-                        📅 Memory from ${data.date}
+                        ${textPack.reviewTitle} ${data.date}
                     </div>
-                    <div style="font-size:16px; font-weight:bold; color:#2d3436; margin-bottom:10px;">
+                    <div style="font-size:16px; font-weight:bold; color:#2d3436; margin-bottom:10px; line-height: 1.4;">
                         ${data.title}
                     </div>
-                    <div class="ai-comment" style="background:#f1f2f6; padding:15px; border-radius:8px; color:#2d3436;">
-                        ${data.comment.replace(/\n/g, '<br>')}
+                    <div class="ai-comment" style="background:#f1f2f6; padding:15px; border-radius:8px; color:#2d3436; font-style:italic;">
+                        "${data.comment.replace(/\n/g, '<br>')}"
                     </div>
-                    <button class="btn-link" style="margin-top:15px; width:100%; text-align:center;" onclick="window.open('${data.url}', '_blank')">
-                        🔗 Read Original Article
+                    <button class="btn-link" style="margin-top:15px; width:100%; text-align:center; background:none; border:none; color:#0984e3; cursor:pointer;" onclick="window.open('${data.url}', '_blank')">
+                        ${textPack.readButton}
                     </button>
                 `;
             })
             .catch(err => {
+                console.error("Review Error:", err);
                 const container = document.getElementById('review-card');
-                if(container) container.innerHTML = `<p style="color:#b2bec3;">Failed to connect to AI.</p>`;
+                if(container) container.innerHTML = `<p style="color:#b2bec3; text-align:center;">Failed to connect to AI Librarian.</p>`;
             });
 
         // (2) Knowledge Expansion (External)
-        fetch('/api/news/api/rag/external/')
+        // [수정] URL에 region 파라미터 추가
+        fetch(`/api/news/rag/external/?region=${currentRegion}`)
         .then(res => res.json())
         .then(data => {
             const container = document.getElementById('external-list');
             const items = data.articles || []; 
-            const keyword = data.keyword || "General News";
+            const keyword = data.keyword || "General";
 
             if (items.length === 0) {
-                container.innerHTML = "<div style='padding:10px; color:#b2bec3; text-align:center;'>No recommendations found at the moment.</div>";
+                container.innerHTML = `<div style='padding:10px; color:#b2bec3; text-align:center;'>${textPack.noExternal}</div>`;
                 return;
             }
 
             let html = `<div style="margin-bottom:15px; font-weight:bold; color:#0984e3; font-size:15px;">
-                            🛰️ AI Keyword: <span style="color:#2d3436;">#${keyword}</span>
+                            ${textPack.keywordLabel} <span style="color:#2d3436; background:#dfe6e9; padding:2px 6px; border-radius:4px;">#${keyword}</span>
                         </div>`;
             
             items.forEach(item => {
                 const link = item.url || item.link || '#';
-                const title = item.title;
-                const summary = item.summary || item.snippet || "No summary available.";
-                const source = item.source || "News Source";
+                // HTML 태그가 포함되어 있을 수 있으므로 제거하거나 텍스트만 추출
+                const title = item.title.replace(/<[^>]*>?/gm, ''); 
+                const summary = item.summary || item.snippet || item.description || "";
+                const source = item.source || textPack.source;
                 
-                let dateStr = "Recent";
-                if (item.date) {
+                let dateStr = "";
+                if (item.date || item.pubDate) {
                     try {
-                        const d = new Date(item.date);
-                        dateStr = `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`;
+                        const rawDate = item.date || item.pubDate;
+                        dateStr = rawDate.substring(0, 10); // YYYY-MM-DD만 자르기
                     } catch(e) {}
                 }
 
                 html += `
                     <div class="reco-item" onclick="window.open('${link}', '_blank')" 
-                         style="cursor:pointer; margin-bottom:12px; padding:15px; background:#fff; border-radius:10px; border:1px solid #dfe6e9; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+                         style="cursor:pointer; margin-bottom:12px; padding:15px; background:#fff; border-radius:10px; border:1px solid #dfe6e9; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: transform 0.2s;">
                         
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <span style="font-size:10px; background:#ffeaa7; color:#d63031; padding:2px 8px; border-radius:4px; font-weight:bold;">HOT</span>
-                            <span style="font-size:11px; color:#b2bec3;">${source} | ${dateStr}</span>
+                            <span style="font-size:10px; background:#ffeaa7; color:#d63031; padding:2px 8px; border-radius:4px; font-weight:bold;">${textPack.hot}</span>
+                            <span style="font-size:11px; color:#b2bec3;">${source} ${dateStr ? '| ' + dateStr : ''}</span>
                         </div>
                         
-                        <div style="font-weight:bold; margin-bottom: 8px; color:#2d3436; font-size:16px; line-height:1.4;">
+                        <div style="font-weight:bold; margin-bottom: 6px; color:#2d3436; font-size:15px; line-height:1.4;">
                             ${title}
                         </div>
                         
-                        <div style="font-size:13px; color:#636e72; line-height:1.5;">
+                        ${summary ? `<div style="font-size:12px; color:#636e72; line-height:1.4; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
                             ${summary}
-                        </div>
+                        </div>` : ''}
                     </div>
                 `;
             });
@@ -122,7 +156,7 @@ document.addEventListener("DOMContentLoaded", function() {
         .catch(err => {
             console.error("Recommendation Error:", err);
             const container = document.getElementById('external-list');
-            if (container) container.innerHTML = `<div style="color:#ff7675;">Failed to load data.</div>`;
+            if (container) container.innerHTML = `<div style="color:#ff7675; text-align:center;">Failed to load data.</div>`;
         });
     }
 
@@ -132,42 +166,62 @@ document.addEventListener("DOMContentLoaded", function() {
     function loadStatsData() {
         if (!document.getElementById('weeklyChart')) return; 
 
-        fetch('/api/news/api/stats/')
+        // [수정] 통계 API 경로 수정 및 Region 파라미터 추가
+        // 주의: backend urls.py 설정에 따라 경로는 '/api/news/dashboard/stats/' 일 수도 있음.
+        // 여기서는 가장 유력한 경로인 dashboard/stats/ 사용
+        fetch(`/api/news/dashboard/stats/?region=${currentRegion}`)
             .then(res => res.json())
             .then(data => {
-                document.getElementById('user-persona').innerText = data.persona || "Knowledge Explorer";
+                // 상단 통계 카드 업데이트
+                if (document.getElementById('total-count')) {
+                    document.getElementById('total-count').innerText = data.total_count || 0;
+                }
+                
+                // (선택사항) Persona 같은 필드가 백엔드에서 오는지 확인 필요
+                if(document.getElementById('user-persona') && data.persona) {
+                    document.getElementById('user-persona').innerText = data.persona;
+                }
 
-                const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
-                new Chart(weeklyCtx, {
-                    type: 'bar', 
-                    data: {
-                        labels: data.daily_activity.map(d => d.date),
-                        datasets: [{
-                            label: 'Articles Read',
-                            data: data.daily_activity.map(d => d.count),
-                            backgroundColor: '#0984e3',
-                            borderRadius: 4,
-                            barThickness: 20
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { 
-                            y: { display: false, beginAtZero: true }, 
-                            x: { grid: { display: false }, ticks: { color: '#636e72' } } 
+                // 차트 데이터가 없으면 중단
+                if (!data.category_stats) return;
+
+                // 1. Weekly Chart (이건 데이터가 없다면 빈 배열 처리 필요)
+                // 현재 백엔드 stats_views.py에는 daily_activity를 주는 부분이 없었음.
+                // 만약 에러가 난다면 이 부분은 주석 처리하거나 백엔드에 추가해야 함.
+                if (data.daily_activity) {
+                    const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+                    new Chart(weeklyCtx, {
+                        type: 'bar', 
+                        data: {
+                            labels: data.daily_activity.map(d => d.date),
+                            datasets: [{
+                                label: 'Articles',
+                                data: data.daily_activity.map(d => d.count),
+                                backgroundColor: '#0984e3',
+                                borderRadius: 4,
+                                barThickness: 20
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { 
+                                y: { display: false, beginAtZero: true }, 
+                                x: { grid: { display: false } } 
+                            }
                         }
-                    }
-                });
+                    });
+                }
 
+                // 2. Category Chart (핵심)
                 const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-                const categories = data.category_distribution;
+                const categories = data.category_stats; // 백엔드 필드명: category_stats
                 
                 new Chart(categoryCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: categories.map(c => c.category || 'Others'),
+                        labels: categories.map(c => c.category || 'General'),
                         datasets: [{
                             data: categories.map(c => c.count),
                             backgroundColor: [
@@ -180,7 +234,12 @@ document.addEventListener("DOMContentLoaded", function() {
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 }, padding: 15, color: '#2d3436' } } },
+                        plugins: { 
+                            legend: { 
+                                position: 'right', 
+                                labels: { boxWidth: 10, font: { size: 11 }, padding: 10, color: '#2d3436' } 
+                            } 
+                        },
                         cutout: '70%'
                     }
                 });

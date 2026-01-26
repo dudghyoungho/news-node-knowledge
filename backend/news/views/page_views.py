@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, resolve_url
 from django.contrib.auth import login, logout
 from django.views.decorators.clickjacking import xframe_options_exempt
 from rest_framework.authtoken.models import Token
@@ -9,33 +9,37 @@ def graph_page(request):
 
 def dashboard_page(request):
     token_key = request.GET.get('token')
+    # [수정] URL에서 region 파라미터 받기 (기본값 KR)
+    region = request.GET.get('region', 'KR') 
     
-    # 디버깅용 로그 (서버 로그에서 확인 가능)
+    # 1. 토큰 기반 로그인 처리
     if token_key:
-        print(f"🔍 대시보드 접근 - Token: {token_key}")
+        print(f"🔍 대시보드 접근 - Token: {token_key}, Region: {region}")
         try:
             token = Token.objects.get(key=token_key)
             target_user = token.user
             
-            # [중요] 이미 다른 아이디로 로그인된 경우 교체
             if request.user.is_authenticated and request.user != target_user:
                 print(f"👋 유저 교체: {request.user} -> {target_user}")
                 logout(request)
             
-            # 로그인 수행 (Backend 명시)
             login(request, target_user, backend='django.contrib.auth.backends.ModelBackend')
             print(f"✅ 로그인 성공: {target_user.username}")
             
-            # 토큰을 URL에서 지우기 위해 리다이렉트
-            return redirect('dashboard')
+            # [중요] 토큰만 지우고, region 정보는 유지한 채 리다이렉트
+            # redirect('dashboard')만 하면 파라미터가 다 날아감
+            redirect_url = resolve_url('dashboard')
+            return redirect(f"{redirect_url}?region={region}")
             
         except Token.DoesNotExist:
             print("❌ 유효하지 않은 토큰")
         except Exception as e:
             print(f"❌ 로그인 에러: {e}")
 
-    # [수정] 비로그인 상태면 로그인 페이지로 '강제 이동' (401 에러 방지)
+    # 2. 비로그인 접근 차단
     if not request.user.is_authenticated:
-        return redirect('/admin/login/?next=/dashboard/')
+        # 로그인 후 다시 돌아올 때도 region 유지
+        return redirect(f'/admin/login/?next=/dashboard/?region={region}')
 
-    return render(request, 'news/dashboard.html')
+    # 3. 템플릿 렌더링 (region 정보를 컨텍스트로 전달)
+    return render(request, 'news/dashboard.html', {'region': region})

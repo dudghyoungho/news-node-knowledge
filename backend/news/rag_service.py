@@ -7,14 +7,13 @@ import random
 import numpy as np
 from datetime import timedelta
 from django.utils import timezone
-from openai import OpenAI
+from django.conf import settings
 from .models import Article
+from .ai_service import get_completion  # ai_service에서 가져오기
 
-# 로거 설정 (강제로 출력하도록 설정)
+# 로거 설정
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ---------------------------------------------------------
 # 1. [Helper] HTML 태그 제거
@@ -27,18 +26,14 @@ def clean_html(raw_html):
     return html.unescape(cleantext)
 
 # ---------------------------------------------------------
-# 2. [Search] 네이버 뉴스 검색 API (디버깅 강화)
+# 2. [Search] 검색 엔진 (Naver & NewsAPI 분기)
 # ---------------------------------------------------------
-def search_articles(keyword):
-    """
-    [수정됨] 네이버 뉴스 포털(news.naver.com) 링크가 있는 기사만 골라냅니다.
-    -> AI 요약 및 크롤링 용이성 확보
-    """
-    client_id = os.getenv("NAVER_CLIENT_ID")
-    client_secret = os.getenv("NAVER_CLIENT_SECRET")
-
+def search_naver(keyword):
+    """ 한국 뉴스 검색 (네이버) """
+    client_id = settings.NAVER_CLIENT_ID
+    client_secret = settings.NAVER_CLIENT_SECRET
+    
     if not client_id or not client_secret:
-        logger.error("🚨 네이버 API 키 누락")
         return []
 
     url = "https://openapi.naver.com/v1/search/news.json"
@@ -46,157 +41,110 @@ def search_articles(keyword):
         "X-Naver-Client-Id": client_id,
         "X-Naver-Client-Secret": client_secret
     }
-    
-    # [변경점 1] 필터링을 위해 넉넉하게 10개를 가져옵니다.
-    params = {"query": keyword, "display": 10, "start": 1, "sort": "sim"}
+    params = {"query": keyword, "display": 5, "sort": "sim"}
 
     try:
         response = requests.get(url, headers=headers, params=params)
-        data = response.json()
-        items = data.get("items", [])
+        items = response.json().get("items", [])
         
         results = []
         for item in items:
-            # 네이버 뉴스 링크 필드
-            naver_link = item.get("link", "")
-            
-            # [변경점 2] ★ 핵심 필터링 로직 ★
-            # 링크에 'news.naver.com'이나 'sports.news.naver.com' 등이 없으면 버립니다.
-            if "news.naver.com" not in naver_link:
+            link = item.get("link", "")
+            # 네이버 뉴스 포털 링크 우선 필터링 (요약 품질 위해)
+            if "news.naver.com" not in link:
+                continue
+                
+            results.append({
+                "title": clean_html(item.get("title", "")),
+                "link": link,
+                "pubDate": item.get("pubDate", ""),
+                "source": "Naver News"
+            })
+        return results
+    except Exception as e:
+        logger.error(f"Naver Search Error: {e}")
+        return []
+
+def search_newsapi(keyword):
+    """ 
+    호주/글로벌 뉴스 검색 (NewsAPI) 
+    - [수정 1] 신뢰할 수 있는 언론사(도메인) 필터링 적용
+    - [수정 2] summary 필드 매핑 (내용 표시)
+    """
+    api_key = os.environ.get("NEWSAPI_KEY") 
+    if not api_key:
+        logger.warning("NewsAPI Key missing")
+        return []
+
+    url = "https://newsapi.org/v2/everything"
+    
+    # ★ 신뢰할 수 있는 언론사 도메인 리스트 (호주 중심 + 글로벌 메이저)
+    # abc.net.au (호주 공영), smh.com.au (시드니 모닝 헤럴드), theage.com.au (디 에이지)
+    # bbc.com, reuters.com, bloomberg.com, cnn.com, theguardian.com
+    trusted_domains = (
+        "abc.net.au,smh.com.au,theage.com.au,"
+        "bbc.com,reuters.com,bloomberg.com,cnn.com,theguardian.com,"
+        "nytimes.com,wsj.com,cnbc.com"
+    )
+
+    params = {
+        "q": keyword,
+        "language": "en",
+        "sortBy": "relevancy",
+        "pageSize": 5,
+        "domains": trusted_domains, # ★ 여기서 언론사를 강제합니다.
+        "apiKey": api_key
+    }
+    
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # 에러 체크
+        if data.get("status") != "ok":
+            logger.error(f"NewsAPI Error: {data.get('message')}")
+            return []
+
+        articles = data.get("articles", [])
+        
+        results = []
+        for item in articles:
+            # 내용이 없으면 건너뛰기
+            description = item.get("description")
+            if not description:
                 continue
 
-            # 1. 네이버 데이터 정제
-            title = clean_html(item.get("title", ""))
-            desc = clean_html(item.get("description", ""))
-            pub_date = item.get("pubDate", "")
-
             results.append({
-                "title": title,
-                "summary": desc,       
-                "snippet": desc,
-                "description": desc,
-                "reason": desc,
+                "title": item.get("title"),
+                "link": item.get("url"),
+                "pubDate": item.get("publishedAt", "")[:10],
+                "source": item.get("source", {}).get("name", "NewsAPI"),
                 
-                # 원문 링크 대신 '네이버 뉴스 링크'를 무조건 사용
-                "url": naver_link,
-                "link": naver_link,
-                
-                "img": "", 
-                "thumbnail": "",
-                "source": "Naver News", # 이제 진짜 네이버 뉴스임
-                "date": pub_date
+                # ★ [핵심 수정] 프론트엔드가 'summary'를 찾으므로 여기에 할당
+                "summary": description, 
+                "snippet": description  # 혹시 몰라 snippet에도 넣어둠
             })
-
-            # 키워드 당 1~2개만 필요하다면 여기서 break 해도 되지만,
-            # search_articles 함수 자체는 리스트를 반환하고, 
-            # 호출하는 쪽에서 1개를 고르는 게 낫습니다.
-
         return results
-
     except Exception as e:
-        logger.error(f"네이버 검색 오류: {e}")
+        logger.error(f"NewsAPI Request Exception: {e}")
         return []
 
 # ---------------------------------------------------------
-# 3. [Feature] 외부 기사 추천 (안전장치 포함)
-# ---------------------------------------------------------
-def recommend_external_articles(user):
-    """
-    [수정됨] 주제 중복을 피하기 위해 '3개의 서로 다른 키워드'를 뽑아
-    각각 1개씩 베스트 기사를 가져오는 다양성 확보 로직
-    """
-    recent_articles = Article.objects.filter(user=user).order_by('-created_at')[:10] # 범위를 좀 늘림
-    
-    # 기본 키워드 세트 (읽은 글이 없을 경우 대비)
-    keywords = ["IT 트렌드", "국제 경제", "최신 과학 기술"] 
-
-    # 1. LLM에게 서로 다른 3가지 주제의 키워드 요청
-    if recent_articles.exists():
-        titles = ", ".join([a.title for a in recent_articles])
-        try:
-            prompt = f"""
-            사용자가 최근 읽은 뉴스 제목들이야: [{titles}]
-            
-            이 사용자의 관심사를 넓힐 수 있는 '서로 다른 주제'의 검색 키워드 3개를 추천해줘.
-            
-            [조건]
-            1. 3개의 키워드는 서로 겹치지 않는 분야여야 함. (예: 반도체, 부동산, 유럽여행)
-            2. 콤마(,)로만 구분해서 단어 3개만 딱 출력해. 설명 금지.
-            """
-            response = get_completion(prompt).strip()
-            # 콤마로 분리하여 리스트로 만듦
-            keywords = [k.strip().replace('"', '').replace("'", "") for k in response.split(',')]
-        except Exception as e:
-            logger.error(f"키워드 생성 실패: {e}")
-            keywords = ["주요 뉴스", "테크", "경제"]
-
-    # 만약 키워드가 3개 미만이면 기본값으로 채움
-    while len(keywords) < 3:
-        keywords.append("주요 뉴스")
-
-    # 3개까지만 사용
-    keywords = keywords[:3]
-    logger.info(f"🤖 다양성 확보를 위한 키워드 3대장: {keywords}")
-
-    final_articles = []
-    seen_urls = set() # 중복 기사 방지용
-
-    # 2. 각 키워드별로 검색해서 '가장 정확한 1개'만 가져오기
-    for kw in keywords:
-        # 각 키워드로 2개씩만 검색 (혹시 1등이 중복일까봐 예비로 2개)
-        results = search_articles(kw) 
-        
-        for article in results:
-            # 이미 담은 기사(URL 기준)가 아니면 담고 break (키워드당 1개만)
-            if article['url'] not in seen_urls:
-                # 키워드 정보를 뱃지처럼 제목 앞에 살짝 추가해주면 더 좋음
-                article['keyword_label'] = kw 
-                final_articles.append(article)
-                seen_urls.add(article['url'])
-                break # 1개 담았으면 다음 키워드로 이동
-
-    # 3. 데이터 반환
-    return {
-        "keyword": ", ".join(keywords), # 화면 표시용 (예: 반도체, 부동산, AI)
-        "articles": final_articles,
-        "items": final_articles
-    }
-
-
-# ---------------------------------------------------------
-# (기존 유지) OpenAI 응답 생성
-# ---------------------------------------------------------
-def get_completion(prompt):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful news curator."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"OpenAI API 오류: {e}")
-        return ""
-
-# ---------------------------------------------------------
-# 4. [Feature] DB 내부 연관 기사 추천 (find_connected_articles)
+# 3. [Feature] DB 내부 연관 기사 추천 (find_connected_articles)
 # ---------------------------------------------------------
 def find_connected_articles(target_article):
     """
     현재 읽는 기사와 유사한 내 서재의 기사를 찾습니다.
-    (벡터 유사도 기반)
+    (같은 국가 region 기사끼리만 매칭)
     """
-    # 임베딩이 없으면 추천 불가
     if not target_article.embedding:
         return []
 
-    # 내 서재의 다른 기사들 가져오기 (저장된 것만)
+    # [수정] 같은 유저 + SAVED + ★같은 Region★
     user_articles = Article.objects.filter(
         user=target_article.user, 
-        status='saved'
+        status=Article.Status.SAVED,
+        region=target_article.region
     ).exclude(id=target_article.id).exclude(embedding__isnull=True)
 
     target_vec = np.array(target_article.embedding)
@@ -218,7 +166,8 @@ def find_connected_articles(target_article):
             recommendations.append({
                 "id": article.id,
                 "title": article.title,
-                "similarity": round(float(similarity), 2)
+                "similarity": round(float(similarity), 2),
+                "summary": article.summary
             })
     
     # 유사도 높은 순 정렬 후 상위 3개 반환
@@ -226,97 +175,155 @@ def find_connected_articles(target_article):
     return recommendations[:3]
 
 # ---------------------------------------------------------
-# 5. [Feature] 과거 기사 복기 (review_past_knowledge)
+# 4. [Feature] 과거 기사 복기 (review_past_knowledge)
 # ---------------------------------------------------------
-def review_past_knowledge(user):
+def review_past_knowledge(user, region='KR'):
     """
-    [Upgrade] 단순 회상이 아니라, 3가지 모드(퀴즈/토론/행동) 중 하나로 
-    지적 자극을 주는 고도화된 복기 로직
+    [Upgrade] 3가지 페르소나(퀴즈/토론/실천) 복기.
+    Region에 따라 언어(한글/영어)와 말투를 변경.
     """
     now = timezone.now()
     threshold_time = now - timedelta(days=1) 
 
-    # 1. 대상 기사 선정 (SAVED 상태, 24시간 지난 것)
+    # 1. 대상 기사 선정 (해당 Region + SAVED + 24시간 경과)
     candidates = Article.objects.filter(
         user=user, 
         created_at__lte=threshold_time, 
-        status=Article.Status.SAVED
+        status=Article.Status.SAVED,
+        region=region
     )
     
-    # (Fallback) 없으면 전체 SAVED 기사 중 선택
+    # (Fallback) 없으면 전체 SAVED 중 해당 Region
     if not candidates.exists():
-        candidates = Article.objects.filter(user=user, status=Article.Status.SAVED)
+        candidates = Article.objects.filter(
+            user=user, 
+            status=Article.Status.SAVED,
+            region=region
+        )
 
     if not candidates.exists():
-        return {"message": "아직 서재가 비어있네요. 흥미로운 기사를 저장해보세요!"}
+        msg = "No articles saved yet." if region == 'AU' else "아직 저장된 기사가 없습니다."
+        return {"message": msg}
 
     target = random.choice(list(candidates))
 
-    # 2. [핵심] 3가지 페르소나 중 랜덤 선택
+    # 2. 페르소나 랜덤 선택
     modes = ["quiz", "debate", "action"]
     selected_mode = random.choice(modes)
     
-    logger.debug(f"🎲 선택된 복기 모드: {selected_mode}")
-
-    # 3. 모드별 프롬프트 분기
-    if selected_mode == "quiz":
-        # 기억력 테스트 모드
-        system_role = "너는 날카로운 퀴즈 출제자야."
-        instruction = f"""
-        사용자가 과거에 읽은 이 기사의 핵심 내용에 대해 'OX 퀴즈' 혹은 '짧은 객관식 퀴즈'를 하나만 내줘.
-        정답은 알려주지 말고, 사용자가 스스로 생각하게 만들어.
-        문체: 도전적이고 위트 있게.
-        """
-        
-    elif selected_mode == "debate":
-        # 비판적 사고 모드 (악마의 대변인)
-        system_role = "너는 비판적 사고를 돕는 토론 파트너야."
-        instruction = f"""
-        이 기사의 핵심 주장을 파악하고, 그에 대한 '반대 의견'이나 '생각해볼 만한 딜레마'를 질문으로 던져줘.
-        사용자가 이 주제를 다각도로 보게 만드는 것이 목표야.
-        문체: 진지하고 철학적으로.
-        """
-        
-    else: # action
-        # 실천 유도 모드
-        system_role = "너는 성장을 돕는 라이프 코치야."
-        instruction = f"""
-        이 기사의 내용을 실제 삶이나 업무에 적용할 수 있는 '구체적인 질문'을 던져줘.
-        예: "이 내용을 바탕으로 이번 주에 시도해본 것이 있나요?"
-        문체: 부드럽고 격려하는 어조로.
-        """
-
-    # 4. LLM 호출
-    try:
-        full_prompt = f"""
-        [기사 정보]
-        제목: {target.title}
-        요약: {target.summary}
-        
-        [지시사항]
-        {instruction}
-        
-        조건: 
-        1. 질문은 딱 한 문장~두 문장으로 짧게.
-        2. 기사 내용을 모르면 답할 수 없게 구체적으로.
-        """
-        
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_role},
-                {"role": "user", "content": full_prompt}
-            ],
-            temperature=0.8, # 창의성을 위해 온도를 약간 높임
+    # 3. [핵심] 프롬프트 분기 (KR / AU)
+    if region == 'AU':
+        if selected_mode == "quiz":
+            system_role = "You are a sharp Quiz Master."
+            instruction = "Create only one 'True/False' or 'Short multiple-choice' quiz based on this article. Do not reveal the answer."
+            emoji = "🧩 [Quiz] "
+        elif selected_mode == "debate":
+            system_role = "You are a Critical Thinking Partner."
+            instruction = "Identify the main argument and propose a 'Counter-argument' or 'Dilemma' to provoke thought."
+            emoji = "⚖️ [Debate] "
+        else: # action
+            system_role = "You are a Growth Coach."
+            instruction = "Ask a specific question on how to apply this knowledge to real life or work."
+            emoji = "🚀 [Action] "
+            
+        full_prompt = (
+            f"[Article]\nTitle: {target.title}\nSummary: {target.summary}\n\n"
+            f"[Task]\n{instruction}\n\nConstraint: Keep it short (1-2 sentences). English only."
         )
-        comment = response.choices[0].message.content
-        
-        # 모드에 따른 이모지 추가
-        prefix = {"quiz": "🧩 [퀴즈] ", "debate": "⚖️ [생각] ", "action": "🚀 [실천] "}
-        comment = prefix[selected_mode] + comment
 
+    else: # KR
+        if selected_mode == "quiz":
+            system_role = "너는 날카로운 퀴즈 출제자야."
+            instruction = "이 기사의 핵심 내용으로 'OX 퀴즈'나 '짧은 객관식'을 내줘. 정답은 숨겨."
+            emoji = "🧩 [퀴즈] "
+        elif selected_mode == "debate":
+            system_role = "너는 비판적 사고를 돕는 토론 파트너야."
+            instruction = "핵심 주장에 대한 '반대 의견'이나 '딜레마'를 질문으로 던져줘."
+            emoji = "⚖️ [생각] "
+        else: # action
+            system_role = "너는 성장을 돕는 라이프 코치야."
+            instruction = "이 내용을 실제 삶에 적용할 수 있는 '구체적인 질문'을 던져줘."
+            emoji = "🚀 [실천] "
+
+        full_prompt = (
+            f"[기사 정보]\n제목: {target.title}\n요약: {target.summary}\n\n"
+            f"[지시사항]\n{instruction}\n\n조건: 1-2문장으로 짧게. 한국어로 작성."
+        )
+
+    try:
+        # ai_service의 get_completion 사용
+        comment = get_completion(full_prompt, system_role=system_role)
+        final_comment = emoji + comment
     except Exception as e:
         logger.error(f"복기 생성 실패: {e}")
-        comment = "이 기사의 내용, 기억나시나요?"
+        final_comment = "Do you remember this?" if region == 'AU' else "이 기사, 기억나시나요?"
     
-    return {"article": target, "comment": comment}
+    return {"article": target, "comment": final_comment}
+
+# ---------------------------------------------------------
+# 5. [Feature] 외부 기사 추천 (recommend_external_articles)
+# ---------------------------------------------------------
+def recommend_external_articles(user, region='KR'):
+    """
+    [Upgrade] Region에 따라:
+    1. 키워드 추출 언어 변경 (영어/한글)
+    2. 검색 엔진 변경 (NewsAPI/Naver)
+    """
+    recent_articles = Article.objects.filter(
+        user=user, 
+        region=region
+    ).order_by('-created_at')[:10]
+    
+    # 기본 키워드 (Fallback)
+    keywords = ["Tech", "Economy", "Science"] if region == 'AU' else ["기술", "경제", "과학"]
+
+    # 1. 키워드 추출 (AI)
+    if recent_articles.exists():
+        titles = ", ".join([a.title for a in recent_articles])
+        try:
+            if region == 'AU':
+                prompt = (
+                    f"User's recent reading: [{titles}]\n"
+                    "Recommend 3 distinct English search keywords to broaden interest.\n"
+                    "Output: keyword1, keyword2, keyword3 (comma separated)."
+                )
+            else:
+                prompt = (
+                    f"사용자가 최근 읽은 글: [{titles}]\n"
+                    "관심사를 넓힐 수 있는 서로 다른 주제의 검색 키워드 3개를 추천해줘.\n"
+                    "출력: 키워드1, 키워드2, 키워드3 (콤마로만 구분)."
+                )
+            
+            response = get_completion(prompt).strip()
+            keywords = [k.strip().replace('"', '').replace("'", "") for k in response.split(',')]
+        except Exception as e:
+            logger.error(f"키워드 생성 실패: {e}")
+
+    # 안전장치
+    default_kw = "World News" if region == 'AU' else "주요 뉴스"
+    while len(keywords) < 3:
+        keywords.append(default_kw)
+    keywords = keywords[:3]
+
+    final_articles = []
+    seen_urls = set()
+
+    # 2. 검색 실행 (분기)
+    for kw in keywords:
+        if region == 'AU':
+            results = search_newsapi(kw)
+        else:
+            results = search_naver(kw)
+            
+        for article in results:
+            url = article.get('link')
+            if url and url not in seen_urls:
+                article['keyword_label'] = kw # 뱃지용
+                final_articles.append(article)
+                seen_urls.add(url)
+                break 
+
+    return {
+        "keyword": ", ".join(keywords),
+        "articles": final_articles
+    }

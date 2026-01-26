@@ -131,6 +131,9 @@ REST_FRAMEWORK = {
 
 # [API Keys]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
