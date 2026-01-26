@@ -8,7 +8,7 @@ from rest_framework import status
 
 # 상위 폴더 모듈 임포트
 from ..models import Article
-from ..crawler import fetch_naver_news 
+from ..crawler import extract_article 
 from ..ai_service import summarize_stream, get_embedding, classify_news
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def summarize(request):
     try:
         # 1. 크롤링 (호주 뉴스도 처리할 수 있도록 crawler.py가 수정되어야 함)
         # fetch_naver_news라는 이름이지만, 내부적으로 trafilatura 등을 써서 범용 크롤링을 수행한다고 가정
-        crawled_data = fetch_naver_news(url)
+        crawled_data = extract_article(url)
         
         if not crawled_data or not crawled_data.get('content'):
             return Response({'error': '기사 본문을 가져올 수 없습니다.'}, status=status.HTTP_400_BAD_REQUEST)

@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install trafilatura
 
 COPY . /app/
 
