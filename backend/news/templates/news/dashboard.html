@@ -1,9 +1,9 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>내 지식 대시보드</title>
+    <title>My Knowledge Dashboard</title>
     <link rel="stylesheet" href="{% static 'news/css/dashboard.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -24,20 +24,20 @@
         
         <div id="view-knowledge" class="view-section">
             <div class="header">
-                나의 지식 연결망
+                My Knowledge Network
                 <span id="user-persona" class="persona-badge">Loading...</span>
             </div>
             
             <div class="stats-panel">
                 <div class="chart-card">
-                    <h3>📅 이번 주 지식 리듬</h3>
+                    <h3>📅 Weekly Knowledge Rhythm</h3>
                     <div class="chart-box">
                         <canvas id="weeklyChart"></canvas>
                     </div>
                 </div>
                 
                 <div class="chart-card">
-                    <h3>🧠 나의 관심 뇌구조</h3>
+                    <h3>🧠 My Interest Map</h3>
                     <div class="chart-box">
                         <canvas id="categoryChart"></canvas>
                     </div>
@@ -50,21 +50,21 @@
         </div>
 
         <div id="view-librarian" class="view-section" style="display: none;">
-            <div class="header">AI 지식 사서</div>
+            <div class="header">AI Librarian</div>
             
             <div class="librarian-section">
-                <h3>🕰️ 지식 타임캡슐 (Review)</h3>
+                <h3>🕰️ Knowledge Time Capsule (Review)</h3>
                 <div id="review-card" class="ai-card">
-                    <p class="loading-text">AI가 서재를 뒤적이는 중입니다... 📚</p>
-                    </div>
+                    <p class="loading-text">AI is browsing your library... 📚</p>
+                </div>
             </div>
 
             <div class="librarian-section">
-                <h3>🔭 지식 확장 (Discovery)</h3>
-                <p class="section-desc">최근 관심사를 분석해 웹에서 새로운 지식을 찾아왔어요.</p>
+                <h3>🔭 Knowledge Discovery</h3>
+                <p class="section-desc">Found new content from the web based on your recent interests.</p>
                 <div id="external-list" class="ai-list">
-                    <p class="loading-text">관심사 키워드 추출 중... 🛰️</p>
-                    </div>
+                    <p class="loading-text">Extracting keywords... 🛰️</p>
+                </div>
             </div>
         </div>
 

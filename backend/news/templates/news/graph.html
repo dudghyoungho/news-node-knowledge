@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>My Knowledge Universe</title>
@@ -12,29 +12,29 @@
 
     <div class="controls">
         <h1>🌌 Knowledge Galaxy</h1>
-        <p>파란 별을 클릭하면 요약을 볼 수 있습니다.</p>
-        <p>빈 공간을 드래그하여 이동하세요.</p>
+        <p>Click a blue star to view the summary.</p>
+        <p>Drag empty space to navigate.</p>
     </div>
 
     <div id="empty-message">
-        <h2>데이터가 없습니다 텅...🪐</h2>
-        <p>뉴스를 요약하고 저장하면 이곳에 별이 뜹니다.</p>
+        <h2>It's empty here... 🪐</h2>
+        <p>Stars will appear here when you save news summaries.</p>
     </div>
 
     <div id="summary-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <div id="modal-title" class="modal-title">기사 제목</div>
+                <div id="modal-title" class="modal-title">Article Title</div>
                 <button class="close-btn">×</button>
             </div>
             
-            <img id="modal-img" class="modal-img" src="" alt="기사 썸네일">
+            <img id="modal-img" class="modal-img" src="" alt="Article Thumbnail">
 
             <div id="modal-summary" class="modal-body">
-                여기에 3줄 요약 내용이 들어갑니다...
+                The 3-line summary will appear here...
             </div>
             <div class="modal-footer">
-                <button id="btn-go-article" class="btn-link">원문 보러가기 🚀</button>
+                <button id="btn-go-article" class="btn-link">Read Original Article 🚀</button>
             </div>
         </div>
     </div>
