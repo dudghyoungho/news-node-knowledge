@@ -10,13 +10,13 @@
 <body>
 
     <div class="sidebar">
-        <div class="logo">News-Node 🧠</div>
+        <div class="logo">News-Node-Knowledge</div>
         
         <div class="menu-item active" data-target="view-knowledge">
-            🪐 My Knowledge
+            My Knowledge
         </div>
         <div class="menu-item" data-target="view-librarian">
-            🤖 My Librarian
+            My Librarian
         </div>
     </div>
 
@@ -53,23 +53,31 @@
             <div class="header">AI Librarian</div>
             
             <div class="librarian-section">
-                <h3>🕰️ Knowledge Time Capsule (Review)</h3>
+                <h3>Knowledge Time Capsule (Review)</h3>
                 <div id="review-card" class="ai-card">
-                    <p class="loading-text">AI is browsing your library... 📚</p>
+                    <p class="loading-text">AI is browsing your library...</p>
                 </div>
             </div>
 
             <div class="librarian-section">
-                <h3>🔭 Knowledge Discovery</h3>
+                <h3>Knowledge Discovery</h3>
                 <p class="section-desc">Found new content from the web based on your recent interests.</p>
                 <div id="external-list" class="ai-list">
-                    <p class="loading-text">Extracting keywords... 🛰️</p>
+                    <p class="loading-text">Extracting keywords... </p>
                 </div>
             </div>
         </div>
 
-    </div>
+        <div class="dashboard-footer">
+            <div class="footer-content">
+                <span>© 2024 News-Node-Knowledge | 이준아 사랑해!</span>
+                <span class="divider">|</span>
+                <span>Contact: <a href="mailto:contact@example.com">younghoshin2001@gmail.com</a></span>
+                <span class="divider">|</span>
+                <a href="/api/news/privacy/" target="_blank">Privacy Policy</a>
+            </div>
+        </div>
 
-    <script src="{% static 'news/js/dashboard.js' %}"></script>
+    </div> <script src="{% static 'news/js/dashboard.js' %}"></script>
 </body>
 </html>

@@ -11,17 +11,17 @@ document.addEventListener("DOMContentLoaded", function() {
     // UI 텍스트 언어팩 (간단한 로컬라이징)
     const uiText = {
         'KR': {
-            reviewTitle: "📅 과거의 기억",
-            readButton: "🔗 원문 읽기",
-            keywordLabel: "🛰️ AI 추천 키워드:",
+            reviewTitle: "과거의 기억",
+            readButton: "원문 읽기",
+            keywordLabel: "AI 추천 키워드:",
             noExternal: "추천할 외부 기사가 없습니다.",
             hot: "인기",
             source: "뉴스 출처"
         },
         'AU': {
-            reviewTitle: "📅 Memory from",
-            readButton: "🔗 Read Article",
-            keywordLabel: "🛰️ AI Keyword:",
+            reviewTitle: "Memory from",
+            readButton: "Read Article",
+            keywordLabel: "AI Keyword:",
             noExternal: "No recommendations found.",
             hot: "HOT",
             source: "Source"
