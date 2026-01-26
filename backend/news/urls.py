@@ -28,4 +28,6 @@ urlpatterns = [
     # 나중에 config/urls.py에서 분리하는 것을 추천하지만, 지금은 그대로 둠.
     path('dashboard/', views.dashboard_page, name='dashboard'),
     path('graph/', views.graph_page, name='graph_view'),
+
+    path('privacy/', views.privacy_policy, name='privacy_policy'),
 ]

@@ -43,3 +43,6 @@ def dashboard_page(request):
 
     # 3. 템플릿 렌더링 (region 정보를 컨텍스트로 전달)
     return render(request, 'news/dashboard.html', {'region': region})
+
+def privacy_policy(request):
+    return render(request, 'news/privacy.html')
