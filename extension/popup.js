@@ -1,5 +1,7 @@
 // Django Server URL (Adjust based on your urls.py)
-const SERVER_URL = "http://43.203.231.70"; 
+const SERVER_URL = "http://127.0.0.1:8000"; //개발용
+// const SERVER_URL = "http://43.203.231.70"; //배포용
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
@@ -11,19 +13,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const btnSummarize = document.getElementById('btn-summarize');
     const btnSave = document.getElementById('btn-save');
-
     const btnGraph = document.getElementById('btn-graph');
+    
+    // [NEW] Region Selector
+    const regionSelector = document.getElementById('region-selector');
     
     const summaryBox = document.getElementById('summary-box');
     const statusMsg = document.getElementById('status');
 
     let userToken = null;
     let currentUrl = "";
+    let currentRegion = 'KR'; // Default region
 
     // ============================================================
-    // 1. Initialization: Check for saved token (Auto Login)
+    // 1. Initialization: Check for saved token & region
     // ============================================================
-    chrome.storage.local.get(['api_token'], (result) => {
+    // [MODIFIED] Retrieve 'region' along with 'api_token'
+    chrome.storage.local.get(['api_token', 'region'], (result) => {
+        // 1-1. Load saved region preference
+        if (result.region) {
+            currentRegion = result.region;
+            regionSelector.value = currentRegion;
+        }
+
+        // 1-2. Auto Login check
         if (result.api_token) {
             console.log("Auto-login successful");
             userToken = result.api_token;
@@ -31,6 +44,23 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             showLoginSection();
         }
+    });
+
+    // ============================================================
+    // [NEW] 1-B. Region Change Handler
+    // ============================================================
+    regionSelector.addEventListener('change', (e) => {
+        currentRegion = e.target.value;
+        // Save the selection permanently
+        chrome.storage.local.set({ 'region': currentRegion }, () => {
+            console.log(`Region changed to: ${currentRegion}`);
+            // If main section is active, reset UI to encourage new summary
+            if (!mainSection.classList.contains('hidden')) {
+                summaryBox.textContent = `Region switched to ${currentRegion}. Click button to summarize.`;
+                btnSummarize.classList.remove('hidden');
+                btnSave.classList.add('hidden');
+            }
+        });
     });
 
     // ============================================================
@@ -46,10 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loginSection.classList.add('hidden');
         mainSection.classList.remove('hidden');
         
-        // Reset button states when entering main screen
         btnSummarize.classList.remove('hidden');
         btnSummarize.disabled = false;
-        btnSummarize.textContent = "⚡️ Start Summarizing"; // Fixed typo: Summerizing -> Summarizing
+        btnSummarize.textContent = "⚡️ Start Summarizing";
         
         btnSave.classList.add('hidden');
         btnSave.textContent = "💾 Save to My Library";
@@ -64,7 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnGoogle.addEventListener('click', () => {
         statusMsg.textContent = "Authenticating with Google...";
         
-        // 1. Request Google Token from Chrome
         chrome.identity.getAuthToken({ interactive: true }, function(token) {
             if (chrome.runtime.lastError || !token) {
                 console.error(chrome.runtime.lastError);
@@ -74,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             statusMsg.textContent = "Logging in to server...";
 
-            // 2. Send Google Token to Django Server
             fetch(`${SERVER_URL}/api/news/auth/google/`, {
                 method: 'POST',
                 headers: { 
@@ -89,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.token) {
                     userToken = data.token;
-                    // 3. Save token to Chrome Storage
                     chrome.storage.local.set({ 'api_token': userToken }, () => {
                         showMainSection();
                         statusMsg.textContent = "";
@@ -110,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     btnLogout.addEventListener('click', (e) => {
         e.preventDefault(); 
-        // Remove saved token
         chrome.storage.local.remove('api_token', () => {
             userToken = null;
             showLoginSection();
@@ -118,34 +143,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================================================
-    // 5. [Start Summarize] Button Logic (Streaming)
+    // 5. [Start Summarize] Button Logic
     // ============================================================
     btnSummarize.addEventListener('click', async () => {
-        // Lock UI
         btnSummarize.disabled = true;
         summaryBox.textContent = ""; 
         statusMsg.textContent = "Verifying article URL...";
 
         try {
-            // Get current tab URL
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             currentUrl = tab.url;
 
             statusMsg.textContent = "AI is reading the article...";
 
-            // Server Request
+            // [MODIFIED] Send 'region' in the request body
             const response = await fetch(`${SERVER_URL}/api/news/summarize/`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Token ${userToken}` 
                 },
-                body: JSON.stringify({ url: currentUrl })
+                body: JSON.stringify({ 
+                    url: currentUrl,
+                    region: currentRegion // <--- Sending selected region
+                })
             });
 
-            // Error Handling
             if (!response.ok) {
-                // 401 Unauthorized
                 if (response.status === 401) {
                     alert("Session expired. Please log in again.");
                     btnLogout.click();
@@ -154,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const errData = await response.json();
                 
-                // Already Saved
                 if (errData.status === 'ALREADY_SAVED') {
                     summaryBox.textContent = `📚 Already saved in your library.\n(Date: ${new Date().toLocaleDateString()})`;
                     btnSummarize.textContent = "Already Saved";
@@ -165,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errData.error || "Summarization failed");
             }
 
-            // Stream Handling
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             
@@ -177,12 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const chunk = decoder.decode(value);
                 summaryBox.textContent += chunk;
-                
-                // Auto Scroll
                 summaryBox.scrollTop = summaryBox.scrollHeight;
             }
 
-            // UI Update on Completion
             btnSummarize.classList.add('hidden'); 
             btnSave.classList.remove('hidden');   
             statusMsg.textContent = "Done! Do you want to save this?";
@@ -204,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const finalSummary = summaryBox.textContent;
 
         try {
+            // [MODIFIED] Send 'region' when saving as well (to tag DB correctly)
             const response = await fetch(`${SERVER_URL}/api/news/save/`, {
                 method: 'POST',
                 headers: { 
@@ -212,7 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({ 
                     url: currentUrl,
-                    summary: finalSummary 
+                    summary: finalSummary,
+                    region: currentRegion // <--- Sending region tag
                 })
             });
 
@@ -235,15 +256,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================================
     if (btnGraph) {
         btnGraph.addEventListener('click', () => {
-            console.log("Current Token:", userToken); 
-
             if (!userToken) {
                 alert("Login required.");
                 return;
             }
 
-            const targetUrl = `${SERVER_URL}/api/news/dashboard/?token=${userToken}`;
-            console.log("Target URL:", targetUrl); 
+            // [MODIFIED] Append 'region' query parameter
+            const targetUrl = `${SERVER_URL}/api/news/dashboard/?token=${userToken}&region=${currentRegion}`;
+            console.log("Opening Dashboard:", targetUrl); 
 
             chrome.tabs.create({ url: targetUrl });
         });
