@@ -181,7 +181,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 리사이즈 이벤트: 브라우저 창 크기가 변하면 그래프 크기도 즉시 반영
     window.addEventListener('resize', () => {
-        Graph.width(window.innerWidth);
-        Graph.height(window.innerHeight);
+        const newWidth = window.innerWidth;
+        const newHeight = window.innerHeight;
+
+        // 1. 캔버스 크기 변경
+        Graph.width(newWidth);
+        Graph.height(newHeight);
+
+        // 2. 물리 엔진의 중심점을 새로운 화면 중앙으로 이동
+        // (이게 없으면 창을 줄였을 때 노드들이 오른쪽 아래로 쏠려 보입니다)
+        Graph.d3Force('center', d3.forceCenter(newWidth / 2, newHeight / 2));
+
+        // 3. 모든 노드가 화면에 들어오도록 줌 레벨 자동 조정 (애니메이션 500ms)
+        // 약간의 여백(padding) 50px을 둡니다.
+        setTimeout(() => {
+            Graph.zoomToFit(500, 50); 
+        }, 100); // 0.1초 뒤 실행 (즉시 실행 시 렉 방지)
     });
 });
