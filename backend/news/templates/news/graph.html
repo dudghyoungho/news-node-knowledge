@@ -9,18 +9,18 @@
     <link rel="stylesheet" href="{% static 'news/css/graph.css' %}">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'news/favicon.ico' %}">
 </head>
-<body>
+<body class="dark-theme">
 
     <div class="controls">
-        <h1>🌌 Knowledge Galaxy</h1>
-        <p>Click a blue star to view the summary.</p>
-        <p>Drag empty space to navigate.</p>
+        <p>🖱️ Drag to move | 🔍 Scroll to zoom | ⭐ Click node</p>
     </div>
 
     <div id="empty-message">
         <h2>It's empty here... 🪐</h2>
         <p>Stars will appear here when you save news summaries.</p>
     </div>
+
+    <div id="graph-container"></div>
 
     <div id="summary-modal" class="modal-overlay">
         <div class="modal-content">
@@ -32,15 +32,13 @@
             <img id="modal-img" class="modal-img" src="" alt="Article Thumbnail">
 
             <div id="modal-summary" class="modal-body">
-                The 3-line summary will appear here...
+                The summary will appear here...
             </div>
             <div class="modal-footer">
-                <button id="btn-go-article" class="btn-link">Read Original Article 🚀</button>
+                <button id="btn-go-article" class="btn-link">Read Original 🚀</button>
             </div>
         </div>
     </div>
-
-    <div id="graph-container"></div>
 
     <script src="{% static 'news/js/graph.js' %}"></script>
 </body>

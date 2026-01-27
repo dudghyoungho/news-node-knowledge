@@ -2,235 +2,186 @@ document.addEventListener('DOMContentLoaded', () => {
     const elem = document.getElementById('graph-container');
     const emptyMsg = document.getElementById('empty-message');
     
-    // 모달 관련 요소
+    // 모달 관련 요소들
     const modal = document.getElementById('summary-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalImg = document.getElementById('modal-img');
     const modalSummary = document.getElementById('modal-summary');
     const btnGoArticle = document.getElementById('btn-go-article');
     let currentLink = "";
-
-    // ★ [수정됨] 1. 호버 상태를 추적할 변수 선언
     let hoverNode = null;
 
-    // 2. Force Graph 초기화
+    // [핵심] Force Graph 초기화
+    // 사이드바 관련 로직(miniChart, graphWrapper)은 모두 삭제하고, window 크기 기준 설정
     const Graph = ForceGraph()(elem)
-        .backgroundColor('#000011')
+        .backgroundColor('rgba(0,0,0,0)') // CSS에서 투명 배경 처리함
+        .width(window.innerWidth)         // 화면 전체 너비
+        .height(window.innerHeight)       // 화면 전체 높이
         .nodeId('id')
-        .nodeLabel('') // ★ [수정됨] 기본 브라우저 툴팁 제거 (캔버스에 직접 그리므로)
+        .nodeLabel('') 
         .nodeVal('val')
+        
+        // --------------------------------------------------
+        // [디자인] 링크(선) 스타일링: 네온 효과
+        // --------------------------------------------------
         .linkCanvasObject((link, ctx, globalScale) => {
-            // 1. [카테고리 연결] (기본 뼈대)
-            // 백엔드에서 type="category"로 보낸 링크들
-            if (link.type === 'category' || !link.type) { // !link.type은 호환성용
-                // 줌 아웃 시 카테고리 선 숨기기 (깔끔함 유지)
-                if (globalScale < 0.6) return; 
+            if (globalScale < 0.5 && link.type === 'category') return;
 
-                ctx.beginPath();
-                ctx.moveTo(link.source.x, link.source.y);
-                ctx.lineTo(link.target.x, link.target.y);
-                
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // 연한 흰색 실선
-                ctx.lineWidth = 1.5 / globalScale;
-                ctx.setLineDash([]); // 실선으로 초기화
-                ctx.stroke();
-                return;
-            }
-
-            // 2. [의미적 연결] (Semantic Linking)
-            // 백엔드에서 type="semantic"으로 보낸 링크들
-            // ★ 조건: "현재 마우스가 올라간 노드(hoverNode)"와 연결된 선일 때만 그림
             const isConnectedToHover = hoverNode && (link.source === hoverNode || link.target === hoverNode);
             
-            if (link.type === 'semantic' && isConnectedToHover) {
-                ctx.beginPath();
-                ctx.moveTo(link.source.x, link.source.y);
-                ctx.lineTo(link.target.x, link.target.y);
+            ctx.beginPath();
+            ctx.moveTo(link.source.x, link.source.y);
+            ctx.lineTo(link.target.x, link.target.y);
+            
+            ctx.lineWidth = (link.type === 'semantic' ? 2 : 1) / globalScale;
+            ctx.shadowBlur = 0;
 
-                // 강조 효과 (점선)
-                ctx.strokeStyle = '#fab1a0'; // 살구색 (눈에 잘 띄는 색)
-                ctx.lineWidth = 2.0 / globalScale; // 조금 더 두껍게
-                ctx.setLineDash([4 / globalScale, 2 / globalScale]); // 점선 패턴 (줌 레벨 대응)
-                ctx.stroke();
-                
-                // 다 그렸으면 점선 설정 초기화 (다른 그림에 영향 안 주게)
-                ctx.setLineDash([]); 
+            if (link.type === 'category' || !link.type) {
+                // 카테고리 연결선: 연한 파랑
+                ctx.strokeStyle = 'rgba(116, 185, 255, 0.3)'; 
+            } else if (link.type === 'semantic') {
+                // 의미적 연결선: 붉은 계열 + 점선
+                ctx.strokeStyle = isConnectedToHover ? '#fab1a0' : 'rgba(250, 177, 160, 0.4)';
+                if(isConnectedToHover) {
+                    ctx.shadowColor = '#fab1a0';
+                    ctx.shadowBlur = 10; // 호버 시 발광
+                }
+                ctx.setLineDash([4 / globalScale, 3 / globalScale]);
             }
-            // 그 외(호버 안 된 의미적 연결)는 그리지 않음 (투명 처리)
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
         })
-        // .linkWidth(...) 설정은 linkCanvasObject가 있으면 무시되므로 삭제해도 됩니다.
-        
-        // ... (이후 코드: nodeCanvasObject 등)
-        
 
+        // --------------------------------------------------
+        // [디자인] 노드 스타일링: 발광 효과 + 이미지
+        // --------------------------------------------------
         .nodeCanvasObject((node, ctx, globalScale) => {
-            // [설정] 화면 배율에 따른 가시성 임계값
-            const SHOW_NODE_THRESHOLD = 0.6; // 이보다 확대해야 '기사 점'이 보임
-            const SHOW_TEXT_THRESHOLD = 1.2; // 이보다 확대해야 '기사 제목'이 보임 (너무 많으면 1.5로 올리세요)
-
+            const SHOW_NODE_THRESHOLD = 0.6;
             const isCategory = (node.group === 2);
             const isHover = (node === hoverNode);
-            
-            //숨김 처리 - 멀리 있을 때 기사는 아예 안 그림 (카테고리는 항상 그림)
-            if (!isCategory && !isHover && globalScale < SHOW_NODE_THRESHOLD) {
-                return;
+            const radius = Math.sqrt(node.val) * 6;
+
+            if (!isCategory && !isHover && globalScale < SHOW_NODE_THRESHOLD) return;
+
+            // 1. 발광(Glow) 효과 그리기
+            if (isCategory || isHover) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius + 4, 0, 2 * Math.PI);
+                ctx.fillStyle = isCategory ? 'rgba(116, 185, 255, 0.2)' : 'rgba(250, 177, 160, 0.2)';
+                ctx.fill();
             }
 
-            // 2. 노드 그리기 (원/이미지)
-            const radius = Math.sqrt(node.val) * 5; 
-            
+            // 2. 노드 본체 그리기
             ctx.beginPath();
-            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-
-            // 이미지가 있고, 어느 정도 확대되었거나 호버 상태일 때만 이미지 렌더링
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+            
             if (node.imgObj && (globalScale > SHOW_NODE_THRESHOLD || isHover)) {
+                // [이미지 노드]
                 ctx.save();
                 ctx.clip();
                 ctx.drawImage(node.imgObj, node.x - radius, node.y - radius, radius * 2, radius * 2);
                 ctx.restore();
                 
-                // 이미지 테두리
+                // 테두리 링
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1.5 / globalScale;
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = isCategory ? '#74b9ff' : '#fab1a0';
+                ctx.lineWidth = 2 / globalScale;
                 ctx.stroke();
             } else {
-                // 이미지가 없거나 멀리 있을 때는 색상 원
-                ctx.fillStyle = isCategory ? '#ff7675' : '#0984e3'; 
+                // [기본 노드] 그라데이션 원
+                const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius);
+                if (isCategory) {
+                    gradient.addColorStop(0, '#74b9ff'); gradient.addColorStop(1, '#0984e3');
+                } else {
+                    gradient.addColorStop(0, '#fab1a0'); gradient.addColorStop(1, '#e17055');
+                }
+                ctx.fillStyle = gradient;
                 ctx.fill();
             }
 
-            // 호버 시 하이라이트 링 (선택됨 강조)
-            if (isHover) {
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 3 / globalScale; // 두께감 있게
-                ctx.stroke();
-            }
-
-            // 3. [텍스트 그리기] (스마트 라벨링)
-            // 조건: 카테고리이거나 OR 호버중이거나 OR 충분히 확대되었을 때
-            const shouldShowText = isCategory || isHover || (globalScale > SHOW_TEXT_THRESHOLD);
-
+            // 3. 텍스트 라벨 그리기
+            const shouldShowText = isCategory || isHover || (globalScale > 1.2);
             if (shouldShowText) {
                 const label = node.name;
-                
-                let fontSize = 12 / globalScale;
-                if (isCategory && globalScale < SHOW_NODE_THRESHOLD) {
-                    fontSize = 14 / globalScale; // 멀리서도 카테고리는 큼직하게
-                } else if (isHover) {
-                    fontSize = 14 / globalScale; // 호버 시 살짝 크게
-                }
-
+                const fontSize = (isHover ? 14 : 12) / globalScale;
                 ctx.font = `${isCategory ? 'bold' : ''} ${fontSize}px Sans-Serif`;
                 
-                // 텍스트 배경 박스 계산
                 const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.4); 
+                const bckgDimensions = [textWidth + fontSize, fontSize * 1.4];
+                const textX = node.x; const textY = node.y + radius + fontSize/2 + 6;
 
-                const textX = node.x;
-                const textY = node.y + radius + (fontSize / 2) + 6;
+                // 텍스트 배경 (가독성 확보)
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(textX - bckgDimensions[0]/2, textY - bckgDimensions[1]/2, bckgDimensions[0], bckgDimensions[1]);
 
-                // [배경 박스] 글씨가 배경에 묻히지 않도록 반투명 블랙 처리
-                ctx.fillStyle = isHover ? 'rgba(0, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.6)';
-                // 카테고리는 조금 더 연하게
-                if (isCategory && !isHover) ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-
-                ctx.fillRect(
-                    textX - bckgDimensions[0] / 2, 
-                    textY - bckgDimensions[1] / 2 - 2, 
-                    bckgDimensions[0], 
-                    bckgDimensions[1]
-                );
-
-                // [글씨 색상]
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = isCategory ? '#ff7675' : '#ffffff';
-                
-                // 호버 시엔 무조건 흰색/노란색 강조
-                if (isHover) ctx.fillStyle = '#fab1a0'; 
-
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = isCategory ? '#74b9ff' : '#fff';
                 ctx.fillText(label, textX, textY);
             }
         })
-
-        .nodePointerAreaPaint((node, color, ctx) => {
-            const radius = Math.sqrt(node.val) * 5; 
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, radius + 2, 0, 2 * Math.PI, false); 
-            ctx.fill();
-        })
-        // [수정됨] 호버 이벤트 추가
         .onNodeHover(node => {
-            elem.style.cursor = node ? 'pointer' : null; // 마우스 커서 변경
+            elem.style.cursor = node ? 'pointer' : null;
             hoverNode = node || null;
         })
-        .d3Force('link', d3.forceLink().id(d => d.id).distance(80)) // ★ 거리: 80 -> 30 (더 가깝게!)
-        .d3Force('charge', d3.forceManyBody().strength(-30))      // ★ 반발력: -100 (적당히 밀어내기)
-        .d3Force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2)) // 중앙 정렬
-        .onEngineStop(() => {
-            Graph.zoomToFit(1000, 100); // 1초 동안, 100px 여백을 두고 꽉 채우기
-        })
         .onNodeClick(node => {
-            if (node.group === 1) { openModal(node); } 
-            else { Graph.centerAt(node.x, node.y, 1000); Graph.zoom(4, 2000); }
-        });
+            if (node.group === 1) openModal(node); // 기사 노드 클릭 시 모달 오픈
+            else {
+                // 카테고리 노드 클릭 시 확대 및 중심 이동
+                Graph.centerAt(node.x, node.y, 1000);
+                Graph.zoom(4, 2000);
+            }
+        })
+        // 물리 엔진 설정 (모여있게)
+        .d3Force('link', d3.forceLink().id(d => d.id).distance(80))
+        .d3Force('charge', d3.forceManyBody().strength(-70))
+        .d3Force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2)); // [수정] 화면 중앙 정렬
 
-    // 3. 데이터 불러오기 (기존 동일)
+    // 데이터 로드
     const urlParams = new URLSearchParams(window.location.search);
     fetch(`/api/news/graph/data/${window.location.search}`) 
-    .then(res => res.json())
+        .then(res => res.json())
         .then(data => {
-            if (data.nodes.length === 0) {
-                emptyMsg.style.display = 'block';
-            } else {
+            if (data.nodes.length === 0) emptyMsg.style.display = 'block';
+            else {
                 emptyMsg.style.display = 'none';
-
                 data.nodes.forEach(node => {
+                    // 이미지 프리로딩
                     if (node.img) {
                         const img = new Image();
                         img.src = node.img;
                         img.onload = () => { node.imgObj = img; }; 
                     }
                 });
-
                 Graph.graphData(data);
-                setTimeout(() => Graph.zoomToFit(500, 50), 200);
+                // 초기 줌 아웃 (전체 보기)
+                setTimeout(() => Graph.zoomToFit(1000, 50), 500);
             }
         })
         .catch(err => console.error(err));
 
-    // 4. 모달 제어 함수 (기존 동일)
+    // 모달 제어 함수
     function openModal(node) {
         modalTitle.innerText = node.name;
-        modalSummary.innerText = node.summary || "요약 내용이 없습니다.";
+        modalSummary.innerText = node.summary || "No summary available.";
         currentLink = node.url; 
-        
         if (node.img) {
-            modalImg.src = node.img;
-            modalImg.style.display = 'block';
+            modalImg.src = node.img; modalImg.style.display = 'block';
         } else {
             modalImg.style.display = 'none';
         }
-
-        modal.style.display = 'block';
+        modal.style.display = 'flex'; 
     }
-
     const closeModal = () => { modal.style.display = 'none'; };
-
-    // 이벤트 리스너 연결
+    
     document.querySelector('.close-btn').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
     btnGoArticle.addEventListener('click', () => { if (currentLink) window.open(currentLink, '_blank'); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
-    // 반응형 리사이즈
+    // 리사이즈 이벤트: 브라우저 창 크기가 변하면 그래프 크기도 즉시 반영
     window.addEventListener('resize', () => {
-        // 기존: Graph.width(window.innerWidth); Graph.height(window.innerHeight);
-        // 수정: 브라우저 창 크기가 아니라, 늘어난 div 크기에 맞춤
-        Graph.width(elem.clientWidth);
-        Graph.height(elem.clientHeight);
+        Graph.width(window.innerWidth);
+        Graph.height(window.innerHeight);
     });
 });

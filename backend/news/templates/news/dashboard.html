@@ -4,81 +4,91 @@
 <head>
     <meta charset="UTF-8">
     <title>My Knowledge Dashboard</title>
-    <link rel="stylesheet" href="{% static 'news/css/dashboard.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{% static 'news/css/dashboard.css' %}">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'news/favicon.ico' %}">
 </head>
-<body>
+<body class="dark-theme">
 
     <div class="sidebar">
-        <div class="logo">News-Node-Knowledge</div>
-        
-        <div class="menu-item active" data-target="view-knowledge">
-            My Knowledge
+        <div class="menu-group">
+            <div class="logo">News-Node</div>
+            
+            <div class="menu-item active" data-target="view-knowledge">
+                My Knowledge
+            </div>
+            <div class="menu-item" data-target="view-librarian">
+                My Librarian
+            </div>
         </div>
-        <div class="menu-item" data-target="view-librarian">
-            My Librarian
+    
+        <div class="sidebar-footer">
+            <div class="footer-info">
+                <p>© 2026 News-Node-Article</p>
+                <p>Love you Cohen</p>
+            </div>
+            <div class="footer-links">
+                <a href="mailto:younghoshin2001@gmail.com">Contact</a>
+                <span class="dot">·</span>
+                <a href="/api/news/privacy/" target="_blank">Privacy</a>
+            </div>
         </div>
     </div>
 
     <div class="main-content">
         
-        <div id="view-knowledge" class="view-section">
-            <div class="header">
-                My Knowledge Network
-                <span id="user-persona" class="persona-badge">Loading...</span>
-            </div>
+        <div class="graph-background">
+            <iframe src="/api/news/graph/" id="graph-frame" allowtransparency="true"></iframe>
+        </div>
+
+        <div id="view-knowledge" class="view-overlay">
             
-            <div class="stats-panel">
-                <div class="chart-card">
-                    <h3>📅 Weekly Knowledge Rhythm</h3>
+            <div class="overlay-header">
+                <div class="header-title">
+                    My Knowledge Universe
+                    <span id="user-persona" class="persona-badge">Loading...</span>
+                </div>
+            </div>
+
+            <div class="right-floating-panel">
+                
+                <div class="glass-card">
+                    <h3>⚡ Recent Nodes</h3>
+                    <div id="recent-news-list" class="mini-list">
+                        <p class="loading-text small">Loading nodes...</p>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <h3>📅 Weekly Rhythm</h3>
                     <div class="chart-box">
                         <canvas id="weeklyChart"></canvas>
                     </div>
                 </div>
                 
-                <div class="chart-card">
-                    <h3>🧠 My Interest Map</h3>
+                <div class="glass-card">
+                    <h3>🧠 Interest Map</h3>
                     <div class="chart-box">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
             </div>
-
-            <div class="graph-container">
-                <iframe src="/api/news/graph/"></iframe>
-            </div>
         </div>
 
         <div id="view-librarian" class="view-section" style="display: none;">
             <div class="header">AI Librarian</div>
-            
             <div class="librarian-section">
-                <h3>Knowledge Time Capsule (Review)</h3>
-                <div id="review-card" class="ai-card">
-                    <p class="loading-text">AI is browsing your library...</p>
-                </div>
+                <h3>Knowledge Time Capsule</h3>
+                <div id="review-card" class="ai-card"><p>Loading...</p></div>
             </div>
-
             <div class="librarian-section">
                 <h3>Knowledge Discovery</h3>
-                <p class="section-desc">Found new content from the web based on your recent interests.</p>
-                <div id="external-list" class="ai-list">
-                    <p class="loading-text">Extracting keywords... </p>
-                </div>
+                <div id="external-list" class="ai-list"><p>Loading...</p></div>
             </div>
         </div>
 
-        <div class="dashboard-footer">
-            <div class="footer-content">
-                <span>© 2026 News-Node-Knowledge | Dear Cohen</span>
-                <span class="divider">|</span>
-                <span>Contact: <a href="mailto:contact@example.com">younghoshin2001@gmail.com</a></span>
-                <span class="divider">|</span>
-                <a href="/api/news/privacy/" target="_blank">Privacy Policy</a>
-            </div>
-        </div>
+    </div> 
 
-    </div> <script src="{% static 'news/js/dashboard.js' %}"></script>
+    <script src="{% static 'news/js/dashboard.js' %}"></script>
 </body>
 </html>
