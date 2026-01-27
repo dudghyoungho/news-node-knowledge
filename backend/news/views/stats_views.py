@@ -1,5 +1,3 @@
-# backend/news/views/stats_views.py
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,17 +11,17 @@ from ..models import Article
 @permission_classes([IsAuthenticated])
 def get_dashboard_stats(request):
     """
-    대시보드에 필요한 모든 통계 데이터를 한 번에 반환합니다.
-    1. 최근 7일간 독서량 (Bar Chart)
-    2. 카테고리별 비중 (Doughnut Chart)
-    3. 사용자 페르소나 (Dominant Category)
+    대시보드 통계 API (다국어 페르소나 지원)
     """
     user = request.user
+    # [1] 요청된 리전 확인 (기본값 KR)
+    region = request.GET.get('region', 'KR') 
+    
     today = timezone.now().date()
     last_week = today - timedelta(days=6)
 
     # -------------------------------------------------
-    # 1. 주간 독서량 (최근 7일)
+    # 1. 주간 독서량
     # -------------------------------------------------
     daily_counts = (
         Article.objects.filter(user=user, status=Article.Status.SAVED, created_at__date__gte=last_week)
@@ -33,7 +31,6 @@ def get_dashboard_stats(request):
         .order_by('date')
     )
     
-    # DB에 데이터가 없는 날짜도 0으로 채워주기 (프론트엔드 처리가 편해짐)
     daily_data_map = {item['date']: item['count'] for item in daily_counts}
     daily_result = []
     
@@ -45,7 +42,7 @@ def get_dashboard_stats(request):
         })
 
     # -------------------------------------------------
-    # 2. 카테고리 분포 (관심사 분석)
+    # 2. 카테고리 분포
     # -------------------------------------------------
     category_counts = (
         Article.objects.filter(user=user, status=Article.Status.SAVED)
@@ -55,21 +52,57 @@ def get_dashboard_stats(request):
     )
     
     # -------------------------------------------------
-    # 3. 페르소나 결정 (가장 많이 읽은 카테고리 기준)
+    # 3. 페르소나 결정 (다국어 지원)
     # -------------------------------------------------
-    persona = "지식 탐험가 🔭" # 기본값
+    # 기본값 설정
+    persona = "지식 탐험가 🔭" if region == 'KR' else "Knowledge Explorer 🔭"
+
     if category_counts:
-        top_category = category_counts[0]['category']
-        persona_map = {
-            'IT/과학': '미래 설계자 🚀',
-            '경제': '시장 분석가 📈',
-            '정치': '사회 전략가 ⚖️',
-            '세계': '글로벌 리더 🌏',
-            '사회': '휴머니스트 🤝',
-            '생활/문화': '트렌드 세터 ✨'
-        }
-        # 매핑된 게 없으면 그냥 카테고리 이름 사용
-        persona = persona_map.get(top_category, f"{top_category} 전문가 🎓")
+        # 가장 많이 읽은 카테고리 (DB에 저장된 원본 값, 예: 'Economy' or '경제')
+        top_category_raw = category_counts[0]['category']
+        
+        # 대소문자 통일을 위해 소문자 변환 후 비교 (영어의 경우)
+        top_cat_key = top_category_raw.lower() if top_category_raw else ""
+
+        if region == 'KR':
+            # [한국어 모드]
+            # DB에 영어가 들어있든 한글이 들어있든 -> 한국어 페르소나 출력
+            kr_map = {
+                # [IT/Tech]
+                'it/과학': '미래 설계자 🚀', 'it': '미래 설계자 🚀', 'science': '미래 설계자 🚀', 
+                'technology': '미래 설계자 🚀', 'tech': '미래 설계자 🚀',
+                # [Economy]
+                '경제': '시장 분석가 📈', 'business': '시장 분석가 📈', 'economy': '시장 분석가 📈',
+                # [Politics]
+                '정치': '사회 전략가 ⚖️', 'politics': '사회 전략가 ⚖️',
+                # [World]
+                '세계': '글로벌 리더 🌏', 'world': '글로벌 리더 🌏', 'general': '글로벌 리더 🌏',
+                # [Society]
+                '사회': '휴머니스트 🤝', 'society': '휴머니스트 🤝', 'health': '휴머니스트 🤝',
+                # [Life/Culture]
+                '생활/문화': '트렌드 세터 ✨', 'entertainment': '트렌드 세터 ✨', 'sports': '트렌드 세터 ✨'
+            }
+            persona = kr_map.get(top_cat_key, f"{top_category_raw} 전문가 🎓")
+
+        else:
+            # [호주/영어 모드]
+            # DB에 영어가 들어있든 한글이 들어있든 -> 영어 페르소나 출력
+            au_map = {
+                # [IT/Tech]
+                'it/과학': 'Future Architect 🚀', 'it': 'Future Architect 🚀', 'science': 'Future Architect 🚀', 
+                'technology': 'Future Architect 🚀', 'tech': 'Future Architect 🚀',
+                # [Economy]
+                '경제': 'Market Analyst 📈', 'business': 'Market Analyst 📈', 'economy': 'Market Analyst 📈',
+                # [Politics]
+                '정치': 'Social Strategist ⚖️', 'politics': 'Social Strategist ⚖️',
+                # [World]
+                '세계': 'Global Leader 🌏', 'world': 'Global Leader 🌏', 'general': 'Global Leader 🌏',
+                # [Society]
+                '사회': 'Humanist 🤝', 'society': 'Humanist 🤝', 'health': 'Health Expert 🏥',
+                # [Life/Culture]
+                '생활/문화': 'Trend Setter ✨', 'entertainment': 'Trend Setter ✨', 'sports': 'Sports Fan ⚽'
+            }
+            persona = au_map.get(top_cat_key, f"{top_category_raw} Expert 🎓")
 
     return Response({
         "daily_activity": daily_result,

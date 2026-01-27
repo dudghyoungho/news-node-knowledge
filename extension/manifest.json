@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "News Node Knowledge - AI News Archiver",
-    "version": "1.0",
+    "version": "1.0.0",
     "description": "Summerize news with AI, Review in my Library.",
     "permissions": [
       "activeTab",
