@@ -1,4 +1,4 @@
-# 🧠 News-Node-Knowledge: AI News Archiver & Knowledge Graph
+# News-Node-Knowledge: AI News Archiver & Knowledge Graph
 > **AI-Powered News Summarizer & Personalized Knowledge Graph Dashboard**
 
 [![Stack](https://img.shields.io/badge/Tech-Django%20REST%20Framework-092E20?style=flat-square&logo=django)]()
@@ -6,15 +6,15 @@
 [![Stack](https://img.shields.io/badge/Tool-Chrome%20Extension-4285F4?style=flat-square&logo=google-chrome)]()
 [![Stack](https://img.shields.io/badge/AI-OpenAI%20GPT-412991?style=flat-square&logo=openai)]()
 
-## 📖 Project Overview
+## Project Overview
 Developed to systematically organize and visualize the vast amount of ephemeral news consumed daily on the web.
 **News-Node** allows users to summarize and archive articles with a single click via a **Chrome Extension**, and visualize reading patterns and interests through a **Personalized Web Dashboard**.
 
-- **Timeline:** 202x.xx - 202x.xx
+- **Timeline:** 2025.12 - Present
 - **Role:** Individual Project (Full Stack)
 - **Deployment:** [Chrome Web Store Link (Under Review)] / [Dashboard Demo Video]
 
-## 🚀 Key Features
+## Key Features
 1.  **Chrome Extension Accessibility**
     - Instant content extraction and AI-powered summarization via browser popup.
     - Automatic category classification and keyword extraction using OpenAI API.
@@ -26,7 +26,7 @@ Developed to systematically organize and visualize the vast amount of ephemeral 
     - Interactive visualization of connections between archived articles using nodes and edges.
     - Implemented using D3.js (or relevant library) to discover hidden links in user knowledge.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend (Chrome Ext & Dashboard)
 - **Core:** HTML5, CSS3, Vanilla JavaScript (ES6+)
@@ -45,10 +45,10 @@ Developed to systematically organize and visualize the vast amount of ephemeral 
 - **Web Server:** Nginx, Gunicorn
 - **CI/CD:** Git, GitHub Actions (Planned)
 
-## 🏗️ System Architecture
+## System Architecture
 `User (Chrome Browser)` -> `Chrome Extension` -> `AWS Lightsail (Nginx -> Gunicorn -> Django)` -> `OpenAI API / DB`
 
-## 🔥 Trouble Shooting
+## Trouble Shooting
 *Key technical challenges faced and resolved during development.*
 
 ### 1. Mixed Content & Security Policies
@@ -63,7 +63,7 @@ Developed to systematically organize and visualize the vast amount of ephemeral 
 - **Issue:** Encountered DNS resolution failures when calling the OpenAI API from within a local Docker container due to network isolation.
 - **Solution:** Resolved by explicitly injecting Google DNS (`8.8.8.8`) into the `docker-compose` configuration to ensure stable external network connectivity.
 
-## 💿 Installation & Run
+## Installation & Run
 ```bash
 # Clone the repository
 git clone [https://github.com/your-username/news-node-knowledge.git](https://github.com/your-username/news-node-knowledge.git)
