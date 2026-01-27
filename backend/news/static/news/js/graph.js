@@ -167,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
             elem.style.cursor = node ? 'pointer' : null; // 마우스 커서 변경
             hoverNode = node || null;
         })
-        .d3Force('link', d3.forceLink().id(d => d.id).distance(30)) // ★ 거리: 80 -> 30 (더 가깝게!)
-        .d3Force('charge', d3.forceManyBody().strength(-100))      // ★ 반발력: -100 (적당히 밀어내기)
+        .d3Force('link', d3.forceLink().id(d => d.id).distance(80)) // ★ 거리: 80 -> 30 (더 가깝게!)
+        .d3Force('charge', d3.forceManyBody().strength(-30))      // ★ 반발력: -100 (적당히 밀어내기)
         .d3Force('center', d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2)) // 중앙 정렬
         .onEngineStop(() => {
             Graph.zoomToFit(1000, 100); // 1초 동안, 100px 여백을 두고 꽉 채우기
