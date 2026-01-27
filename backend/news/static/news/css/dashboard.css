@@ -263,3 +263,101 @@ a:hover { text-decoration: underline; color: #fff; }
     color: #888; animation: pulse 1.5s infinite ease-in-out;
     text-align: center; padding: 20px; font-size: 12px;
 }
+
+
+/* =========================================
+   9. 반응형 미디어 쿼리 (Responsive)
+   ========================================= */
+
+/* [1단계] 노트북/태블릿 (화면 너비 1200px 이하) */
+@media (max-width: 1200px) {
+    /* 사이드바 너비를 조금 줄임 */
+    .sidebar { width: 200px; }
+    .logo { font-size: 18px; padding: 0 20px; }
+    .main-content { margin-left: 200px; } /* 줄어든 사이드바에 맞춤 */
+
+    /* 오른쪽 패널 너비 줄임 */
+    .right-floating-panel {
+        width: 280px; 
+        right: 20px;
+        top: 80px;
+    }
+    
+    /* 헤더 폰트 크기 조정 */
+    .header-title { font-size: 20px; }
+}
+
+/* dashboard.css - Mobile Responsive Update */
+
+/* 기본적으로 햄버거 버튼과 오버레이는 숨김 (PC 화면) */
+.mobile-menu-btn { display: none; }
+.mobile-overlay { display: none; }
+
+/* [모바일 화면 설정] */
+@media (max-width: 768px) {
+    
+    /* 1. 햄버거 버튼 디자인 */
+    .mobile-menu-btn {
+        display: block; /* 모바일에서만 보임 */
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 200; /* 최상단 */
+        background: rgba(16, 24, 40, 0.8);
+        color: #74b9ff;
+        border: 1px solid rgba(116, 185, 255, 0.3);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 24px;
+        cursor: pointer;
+        backdrop-filter: blur(5px);
+    }
+
+    /* 2. 사이드바: 화면 왼쪽 밖으로 숨겨둠 */
+    .sidebar {
+        display: flex; /* none이 아니라 flex 유지 */
+        width: 260px;
+        transform: translateX(-100%); /* 왼쪽으로 100% 이동 (화면 밖) */
+        transition: transform 0.3s ease-in-out; /* 부드러운 애니메이션 */
+        z-index: 300; /* 버튼보다 위 */
+    }
+
+    /* 사이드바가 열렸을 때 (JS로 클래스 추가) */
+    .sidebar.open {
+        transform: translateX(0); /* 원위치 복귀 */
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    }
+
+    /* 3. 어두운 배경 오버레이 */
+    .mobile-overlay {
+        display: none;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 250; /* 사이드바 바로 아래 */
+        backdrop-filter: blur(3px);
+    }
+    .mobile-overlay.active { display: block; }
+
+    /* 4. 메인 콘텐츠 여백 제거 */
+    .main-content { margin-left: 0; }
+
+    /* 5. 헤더 조정 (버튼 공간 확보) */
+    .overlay-header {
+        padding-left: 70px; /* 버튼과 겹치지 않게 */
+        margin-bottom: 10px;
+    }
+    
+    /* 6. 우측 패널 -> 하단 시트 (이전 코드 유지) */
+    .right-floating-panel {
+        top: auto; right: 0; left: 0; bottom: 0;
+        width: 100%; height: 35vh;
+        border-radius: 20px 20px 0 0;
+        background: rgba(16, 24, 40, 0.95);
+        border-top: 1px solid rgba(255,255,255,0.1);
+        flex-direction: row;
+        overflow-x: auto; overflow-y: hidden;
+        padding: 20px; gap: 15px;
+    }
+    .glass-card { min-width: 250px; height: 100%; margin: 0; }
+    .chart-box { height: 120px; }
+}

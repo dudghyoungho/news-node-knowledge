@@ -37,34 +37,71 @@ document.addEventListener("DOMContentLoaded", function() {
     const textPack = uiText[currentRegion] || uiText['KR'];
 
     // ============================================
-    // 1. Sidebar Navigation Logic
+    // 1. [NEW] Mobile Sidebar Toggle Logic
+    // ============================================
+    const mobileBtn = document.getElementById('mobile-menu-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('mobile-overlay');
+    
+    // 1-1. 햄버거 버튼 클릭 -> 사이드바 열기/닫기
+    if (mobileBtn) {
+        mobileBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        });
+    }
+
+    // 1-2. 오버레이(바깥) 클릭 -> 사이드바 닫기
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        });
+    }
+
+    // ============================================
+    // 2. Sidebar Navigation Logic
     // ============================================
     const menuItems = document.querySelectorAll('.menu-item');
-    const sections = document.querySelectorAll('.view-section'); // .view-overlay도 포함되도록 HTML class 확인 필요
-    // 만약 overlay가 view-section 클래스를 안 가지고 있다면 별도로 처리해야 함.
-    // 여기서는 view-overlay와 view-section을 모두 제어하기 위해 로직을 약간 수정합니다.
-    
     let isLibrarianLoaded = false;
 
     menuItems.forEach(item => {
         item.addEventListener('click', () => {
-            // 메뉴 활성화 처리
+            // 2-1. 메뉴 활성화 스타일 처리
             menuItems.forEach(btn => btn.classList.remove('active'));
             item.classList.add('active');
 
+            // 2-2. 모바일일 경우 메뉴 클릭 시 사이드바 닫기
+            if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+            }
+
             const targetId = item.getAttribute('data-target');
 
-            // 화면 전환 로직
+            // 2-3. 화면 전환 로직
             if (targetId === 'view-knowledge') {
-                // Knowledge 탭: 오버레이와 배경 그래프 표시, Librarian 숨김
-                document.querySelector('.view-overlay').style.display = 'flex';
-                document.querySelector('.graph-background').style.display = 'block';
-                document.getElementById('view-librarian').style.display = 'none';
+                // Knowledge 탭: 오버레이 UI와 배경 그래프 표시, Librarian 숨김
+                const viewOverlay = document.querySelector('.view-overlay');
+                const graphBg = document.querySelector('.graph-background');
+                const librarian = document.getElementById('view-librarian');
+
+                if (viewOverlay) viewOverlay.style.display = 'flex';
+                if (graphBg) graphBg.style.display = 'block';
+                if (librarian) librarian.style.display = 'none';
+
             } else if (targetId === 'view-librarian') {
-                // Librarian 탭: 오버레이와 배경 그래프 숨김(또는 가림), Librarian 표시
-                document.querySelector('.view-overlay').style.display = 'none';
-                // 배경을 아예 숨기거나 Librarian 배경색으로 덮을 수 있음. 여기선 유지하되 Librarian z-index가 높으므로 OK.
-                document.getElementById('view-librarian').style.display = 'block';
+                // Librarian 탭: 오버레이 UI와 배경 그래프 숨김, Librarian 표시
+                const viewOverlay = document.querySelector('.view-overlay');
+                const graphBg = document.querySelector('.graph-background'); // 그래프도 가리거나 숨김
+                const librarian = document.getElementById('view-librarian');
+
+                if (viewOverlay) viewOverlay.style.display = 'none';
+                // 그래프를 아예 숨기지 않으면 겹쳐 보일 수 있으므로 숨김 처리 추천
+                // (투명도 조절보다는 display:none이 성능상 유리)
+                // if (graphBg) graphBg.style.display = 'none'; 
+                
+                if (librarian) librarian.style.display = 'block';
 
                 // 데이터 지연 로딩
                 if (!isLibrarianLoaded) {
@@ -76,13 +113,13 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     // ============================================
-    // 2. Initial Data Loading
+    // 3. Initial Data Loading
     // ============================================
     loadStatsData();   // 차트 및 페르소나
-    loadRecentNews();  // [추가됨] 최근 뉴스 리스트 (플로팅 패널용)
+    loadRecentNews();  // 최근 뉴스 리스트 (플로팅 패널용)
 
     // ============================================
-    // 3. Load Stats Data (Charts & Persona)
+    // 4. Load Stats Data (Charts & Persona)
     // ============================================
     function loadStatsData() {
         if (!document.getElementById('weeklyChart')) return; 
@@ -161,21 +198,19 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // ============================================
-    // 4. [NEW] Load Recent News (Floating Panel)
+    // 5. Load Recent News (Floating Panel)
     // ============================================
     function loadRecentNews() {
         const container = document.getElementById('recent-news-list');
         if (!container) return;
 
-        // API 호출을 시도하되, 실패하거나 데이터가 없으면 '대기 상태' UI를 보여줌
         fetch(`/api/news/stats/?region=${currentRegion}`) 
             .then(res => res.json())
             .then(data => {
-                // 데이터가 없으면 빈 배열로 처리
                 const articles = data.recent_articles || []; 
 
                 if (articles.length === 0) {
-                    // [수정] 오류처럼 보이지 않게 안내 문구 표시
+                    // 데이터 없음 안내
                     container.innerHTML = `
                         <div style="padding: 20px 0; text-align: center;">
                             <div style="font-size: 24px; margin-bottom: 5px;">🪐</div>
@@ -202,7 +237,6 @@ document.addEventListener("DOMContentLoaded", function() {
                 container.innerHTML = html;
             })
             .catch(err => {
-                // [수정] 에러가 나도 '데이터 없음'처럼 자연스럽게 처리 (구현 전이므로)
                 console.warn("Recent News API not ready yet (Ignored).");
                 container.innerHTML = `
                     <div style="padding: 20px 0; text-align: center;">
@@ -216,7 +250,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     // ============================================
-    // 5. Load RAG Data (My Librarian Tab)
+    // 6. Load RAG Data (My Librarian Tab)
     // ============================================
     function loadLibrarianData() {
         // (1) Knowledge Time Capsule (Review)
