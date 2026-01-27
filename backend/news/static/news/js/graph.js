@@ -227,8 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
     // 반응형 리사이즈
-    window.addEventListener('resize',() => {
-        Graph.width(window.innerWidth);
-        Graph.height(window.innerHeight);
-    }); 
+    window.addEventListener('resize', () => {
+        // 기존: Graph.width(window.innerWidth); Graph.height(window.innerHeight);
+        // 수정: 브라우저 창 크기가 아니라, 늘어난 div 크기에 맞춤
+        Graph.width(elem.clientWidth);
+        Graph.height(elem.clientHeight);
+    });
 });

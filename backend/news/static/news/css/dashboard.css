@@ -137,21 +137,25 @@
 
 /* 그래프 컨테이너 (Iframe) */
 .graph-container {
-    flex: 1; 
-    background: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    min-height: 400px; 
+    width: 100%;
+    /* 기존 높이(예: 600px 또는 60vh)를 삭제하고 아래로 교체 */
+    
+    height: 70vh;       /* 화면 높이의 1.2배로 설정 */
+    min-height: 800px;  /* 아무리 작아도 1000px은 확보 */
+    
+    margin-top: 30px;
+    border-radius: 16px;
+    overflow: hidden;    /* 둥근 모서리 유지 */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); /* 그림자 추가로 입체감 */
+    background-color: #000011; /* 그래프 배경색과 맞춤 (로딩 시 깜빡임 방지) */
 }
 
-iframe {
+/* iframe은 부모 크기를 꽉 채우도록 설정 */
+.graph-container iframe {
     width: 100%;
     height: 100%;
     border: none;
-    border-radius: 10px;
+    display: block; /* 하단 미세한 여백 제거 */
 }
 
 /* =========================================
