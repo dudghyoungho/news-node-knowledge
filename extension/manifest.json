@@ -1,38 +1,36 @@
 {
-    "manifest_version": 3,
-    "name": "News Node Knowledge - AI News Archiver",
-    "version": "1.0.0",
-    "description": "Summerize news with AI, Review in my Library.",
-    "permissions": [
-      "activeTab",
-      "scripting",
-      "identity",
-      "storage"
-    ],
-    "oauth2": {
-      "client_id": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com",
-      "scopes": [
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/userinfo.profile"
-      ]
-    },
-    "host_permissions": [
-      "http://localhost:8000/*",
-      "http://127.0.0.1:8000/*",
-      "http://43.203.231.70/*"
-    ],
-    "action": {
-      "default_popup": "popup.html",
-      "default_title": "Summerize Article",
-      "default_icon": {
-          "16": "icon.png", 
-          "48": "icon.png",
-          "128": "icon.png"
-      } 
-    },
-    "icons": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
-    }
+  "manifest_version": 3,
+  "name": "News Node Knowledge - AI News Archiver",
+  "version": "1.0.0",
+  "description": "Summarize news with AI and build your own Knowledge Graph.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "identity",
+    "storage"
+  ],
+  "oauth2": {
+    "client_id": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
+  "host_permissions": [
+    "http://43.203.231.70/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Summarize Article",
+    "default_icon": {
+        "16": "icon16.png", 
+        "48": "icon48.png",
+        "128": "icon128.png"
+    } 
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
 }
