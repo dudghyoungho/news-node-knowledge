@@ -61,14 +61,10 @@ Instead of fleeting news consumption, this tool allows users to:
 4.  **Search** through archived news using semantic understanding (Vector Search).
 
 ### 📸 Demo
-
-| AI Summarization (Popup) | Dashboard & Graph |
-|:-----------------------:|:-----------------:|
-| <img width="1280" height="800" alt="1" src="https://github.com/user-attachments/assets/e43615f8-0b3d-4c46-b0be-43afa6332a9f" />
- | <img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/4269ab0f-d951-498c-9cd0-2a53556c0a11" />
- |
-
----
+#### Chrome Extension
+<img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
+#### Dashboard Page
+<img width="1280" height="800" alt="2" src="https://github.com/user-attachments/assets/cae6c7c2-ac39-43ad-9cf4-771d505b6ae0" />
 
 ## System Architecture
 
