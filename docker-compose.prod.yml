@@ -1,41 +1,35 @@
 version: '3.8'
 
 services:
-  # 1. Django 백엔드 (수정됨)
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: gunicorn news_node.wsgi:application --bind 0.0.0.0:8000
+    build: .
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --chdir backend config.wsgi:application"
+    volumes:
+      - .:/app
     expose:
-      - 8000  # [중요] 외부 ports 대신 내부 expose만 사용
-    # ports:  <-- [중요] 이 부분은 반드시 삭제하거나 주석 처리 (#)
-    #   - "8000:8000"
+      - 8000
     env_file:
       - .env.prod
+    environment:
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
     depends_on:
       - db
+      - redis
     networks:
       - news-network
 
-  # 2. 데이터베이스 (기존 유지)
-  db:
-    image: postgres:13
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env_file:
-      - .env.prod
-    networks:
-      - news-network
-
-  # 3. Nginx Proxy Manager (새로 추가)
   nginx-proxy-manager:
     image: 'jc21/nginx-proxy-manager:latest'
     restart: unless-stopped
     ports:
-      - '80:80'      # HTTP 접속용
-      - '81:81'      # 관리자 페이지용
-      - '443:443'    # HTTPS 접속용
+      - '80:80'
+      - '81:81'
+      - '443:443'
     volumes:
       - ./data:/data
       - ./letsencrypt:/etc/letsencrypt
@@ -44,9 +38,29 @@ services:
     networks:
       - news-network
 
-volumes:
-  postgres_data:
+  db:
+    image: ankane/pgvector:latest
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    expose:
+      - 5432
+    networks:
+      - news-network
+
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+    networks:
+      - news-network
 
 networks:
   news-network:
     driver: bridge
+
+volumes:
+  postgres_data:
