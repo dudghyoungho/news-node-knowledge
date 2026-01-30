@@ -64,8 +64,9 @@ Instead of fleeting news consumption, this tool allows users to:
 
 | AI Summarization (Popup) | Dashboard & Graph |
 |:-----------------------:|:-----------------:|
-| ![Extension Demo](https://via.placeholder.com/400x300?text=Extension+UI+Screenshot) | ![Dashboard Demo](https://via.placeholder.com/400x300?text=Dashboard+Graph+Screenshot) |
-*(Placeholders: Please replace with actual screenshots)*
+| <img width="1280" height="800" alt="1" src="https://github.com/user-attachments/assets/e43615f8-0b3d-4c46-b0be-43afa6332a9f" />
+ | <img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/4269ab0f-d951-498c-9cd0-2a53556c0a11" />
+ |
 
 ---
 
