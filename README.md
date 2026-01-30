@@ -60,10 +60,10 @@ Instead of fleeting news consumption, this tool allows users to:
 3.  **Visualize** the flow of events using a Knowledge Graph.
 4.  **Search** through archived news using semantic understanding (Vector Search).
 
-### 📸 Demo
-#### Chrome Extension
+## 📸 Demo
+### Chrome Extension
 <img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
-#### Dashboard Page
+### Dashboard Page
 <img width="1280" height="800" alt="2" src="https://github.com/user-attachments/assets/cae6c7c2-ac39-43ad-9cf4-771d505b6ae0" />
 
 ## System Architecture
