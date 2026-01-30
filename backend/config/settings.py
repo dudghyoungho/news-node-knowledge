@@ -167,9 +167,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://news.young-dev.link",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    # [심사 제출용 익스텐션 ID]
     "chrome-extension://onfldbkpmmcaepamcdfbkehekmpbmonj",
-    # [로컬 개발용 익스텐션 ID]
     "chrome-extension://flcnfkeekiohhhikkfkpihdmokopjgmc",
 ]
 CORS_ALLOW_CREDENTIALS = True
@@ -187,3 +185,7 @@ if not DEBUG:
 else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True

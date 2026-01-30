@@ -1,4 +1,4 @@
-const SERVER_URL = "https://news.young-dev.link"; //배포용
+const SERVER_URL = "https://news.young-dev.link";
 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1-2. Auto Login check
         if (result.api_token) {
-            console.log("Auto-login successful");
             userToken = result.api_token;
             showMainSection();
         } else {
@@ -51,7 +50,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRegion = e.target.value;
         // Save the selection permanently
         chrome.storage.local.set({ 'region': currentRegion }, () => {
-            console.log(`Region changed to: ${currentRegion}`);
             // If main section is active, reset UI to encourage new summary
             if (!mainSection.classList.contains('hidden')) {
                 summaryBox.textContent = `Region switched to ${currentRegion}. Click button to summarize.`;
@@ -261,8 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // [MODIFIED] Append 'region' query parameter
             const targetUrl = `${SERVER_URL}/api/news/dashboard/?token=${userToken}&region=${currentRegion}`;
-            console.log("Opening Dashboard:", targetUrl); 
-
             chrome.tabs.create({ url: targetUrl });
         });
     }
