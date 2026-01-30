@@ -6,6 +6,12 @@
 [![Stack](https://img.shields.io/badge/Tool-Chrome%20Extension-4285F4?style=flat-square&logo=google-chrome)]()
 [![Stack](https://img.shields.io/badge/AI-OpenAI%20GPT-412991?style=flat-square&logo=openai)]()
 
+<img width="370" height="423" alt="image" src="https://github.com/user-attachments/assets/6e715156-8ec4-4a22-9268-f5fb8cffe458" />
+<img width="1602" height="1162" alt="image" src="https://github.com/user-attachments/assets/dc89c618-e9d7-4c4f-848e-3a2681e2cbd7" />
+<img width="1602" height="1162" alt="image" src="https://github.com/user-attachments/assets/c554387c-670b-4a49-bc56-86687bae808f" />
+<img width="1602" height="1162" alt="image" src="https://github.com/user-attachments/assets/e07b2b7d-b1fa-47c8-b671-1b97848b0d8e" />
+
+
 ## Project Overview
 Developed to systematically organize and visualize the vast amount of ephemeral news consumed daily on the web.
 **News-Node** allows users to summarize and archive articles with a single click via a **Chrome Extension**, and visualize reading patterns and interests through a **Personalized Web Dashboard**.
