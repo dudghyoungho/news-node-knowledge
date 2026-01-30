@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "News Node Knowledge - AI News Archiver",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Summarize news with AI and build your own Knowledge Graph.",
   "permissions": [
     "activeTab",
@@ -16,7 +16,8 @@
     ]
   },
   "host_permissions": [
-    "http://43.203.231.70/*"
+    "https://news.young-dev.link/*",
+    "http://localhost:8000/*"
   ],
   "action": {
     "default_popup": "popup.html",

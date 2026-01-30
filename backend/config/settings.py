@@ -1,5 +1,6 @@
 """
 Django settings for config project.
+Final Production Version for News Node
 """
 
 import os
@@ -12,13 +13,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
+# [Security]
+# 프로덕션에서는 .env 파일의 SECRET_KEY를 사용합니다.
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-default-key-for-dev")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG","False") == "True"
+# 프로덕션에서는 반드시 False여야 합니다. (.env에서 DEBUG=0 설정)
+DEBUG = os.environ.get("DEBUG", "False") == "True"
 
+# 환경변수에서 호스트 목록을 가져오고, 없으면 기본값(로컬+서버IP+도메인)을 사용합니다.
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost 127.0.0.1 43.203.231.70 news.young-dev.link .young-dev.link").split()
+
 
 # Application definition
 
@@ -33,7 +37,7 @@ INSTALLED_APPS = [
     # [3rd Party Apps]
     'rest_framework',           
     'rest_framework.authtoken',
-    'corsheaders',  # ★ [추가] CORS 관련 앱 (크롬 익스텐션 연동 필수)
+    'corsheaders',  # CORS (크롬 익스텐션 연동 필수)
     'pgvector',
     
     # [Local Apps]
@@ -41,9 +45,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # ★ [추가] CommonMiddleware보다 위에 있어야 함
+    'corsheaders.middleware.CorsMiddleware', # [중요] 가능한 최상단에 위치
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # 정적 파일 서빙
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -72,13 +76,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'news_db'),       # 변경
-        'USER': os.environ.get('DB_USER', 'postgres'),       # 변경
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'), # 변경
-        'HOST': os.environ.get('DB_HOST', 'db'),             # 변경 (유연하게)
+        'NAME': os.environ.get('DB_NAME', 'news_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'HOST': os.environ.get('DB_HOST', 'db'),
         'PORT': '5432',
     }
 }
@@ -94,18 +99,15 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Internationalization
-LANGUAGE_CODE = 'ko-kr' # [변경] 한국어 (관리자 페이지 등)
-
-TIME_ZONE = 'Asia/Seoul' # [변경] 한국 시간 (DB 저장 및 그래프 기준)
-
+LANGUAGE_CODE = 'ko-kr' 
+TIME_ZONE = 'Asia/Seoul' 
 USE_I18N = True
-
 USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static') # /app/static
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 STORAGES = {
     "default": {
@@ -117,7 +119,7 @@ STORAGES = {
 }
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')    # /app/media
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
@@ -144,14 +146,44 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 
+
+# ------------------------------------------------------------------------------
+# [보안 및 CORS/CSRF 설정]
+# ------------------------------------------------------------------------------
+
+# 1. CSRF 신뢰할 수 있는 출처
+# HTTPS 도메인과 로컬 개발 주소를 모두 포함해야 합니다.
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8000",
+    "https://news.young-dev.link",      # 운영 도메인
+    "https://www.news.young-dev.link",
+    "http://localhost:8000",            # 로컬 개발
     "http://127.0.0.1:8000",
-    "http://43.203.231.70",  # ★ 본인의 Lightsail 공인 IP 추가
-    "https://43.203.231.70", # 혹시 모를 HTTPS 대비
+    "http://43.203.231.70",             # 서버 IP (HTTP)
+    "https://43.203.231.70",            # 서버 IP (HTTPS)
 ]
 
-# [Security - CORS] ★ 크롬 익스텐션용 필수 설정
-# 개발 중에는 모든 Origin 허용 (배포 시에는 익스텐션 ID 등으로 제한 가능)
-CORS_ALLOW_ALL_ORIGINS = True 
+# 2. CORS 허용 출처 (크롬 익스텐션 & 프론트엔드)
+CORS_ALLOWED_ORIGINS = [
+    "https://news.young-dev.link",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    # [심사 제출용 익스텐션 ID]
+    "chrome-extension://onfldbkpmmcaepamcdfbkehekmpbmonj",
+    # [로컬 개발용 익스텐션 ID]
+    "chrome-extension://flcnfkeekiohhhikkfkpihdmokopjgmc",
+]
 CORS_ALLOW_CREDENTIALS = True
+
+# 3. HTTPS 프록시 설정
+# Nginx Proxy Manager가 넘겨주는 'X-Forwarded-Proto: https' 헤더를 신뢰합니다.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 4. 쿠키 보안 설정 (조건부 적용)
+# 배포 환경(DEBUG=False)에서만 Secure 쿠키를 강제합니다.
+# 로컬(DEBUG=True)에서는 False로 두어야 로그인 에러가 발생하지 않습니다.
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+else:
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False

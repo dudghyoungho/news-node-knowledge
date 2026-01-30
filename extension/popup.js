@@ -1,4 +1,4 @@
-const SERVER_URL = "http://43.203.231.70"; //배포용
+const SERVER_URL = "https://news.young-dev.link"; //배포용
 
 
 document.addEventListener('DOMContentLoaded', () => {
