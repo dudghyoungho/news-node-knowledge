@@ -48,7 +48,7 @@
 
 ---
 
-## 📖 About The Project
+## About The Project
 
 > **"Stop drowning in information. Start building your knowledge."**
 
@@ -70,7 +70,7 @@ Instead of fleeting news consumption, this tool allows users to:
 
 ---
 
-## 🏗 System Architecture
+## System Architecture
 
 The system utilizes a microservices-like architecture containerized with Docker.
 
@@ -115,7 +115,7 @@ graph LR
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 To set up a local development environment, follow these steps.
 
@@ -165,7 +165,7 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 .
@@ -187,7 +187,7 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 🔥 Key Features
+## Key Features
 
 - [x] **Secure Authentication**: Seamless login via Google OAuth2 with secure token management.
 - [x] **AI Summarization**: Extracts key points, keywords, and sentiment from any news article page.
@@ -197,18 +197,18 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 📜 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
-## 📧 Contact
+## Contact
 
-**Project Lead** - [Your Name]
+**Project Lead** - Youngho Shin
 <br />
-**Email** - [Your Email]
+**Email** - younghoshin2001@gmail.com
 <br />
-**Project Link** - [https://github.com/your-username/news-node-knowledge](https://github.com/your-username/news-node-knowledge)
+**Project Link** - [https://github.com/dudghyoungho/news-node-knowledge](https://github.com/dudghyoungho/news-node-knowledge)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
