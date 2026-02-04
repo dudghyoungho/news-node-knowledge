@@ -48,7 +48,7 @@
 
 ---
 
-## 📖 About The Project
+## About The Project
 
 > **"Stop drowning in information. Start building your knowledge."**
 
@@ -60,17 +60,13 @@ Instead of fleeting news consumption, this tool allows users to:
 3.  **Visualize** the flow of events using a Knowledge Graph.
 4.  **Search** through archived news using semantic understanding (Vector Search).
 
-### 📸 Demo
+## 📸 Demo
+### Chrome Extension
+<img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
+### Dashboard Page
+<img width="1280" height="800" alt="2" src="https://github.com/user-attachments/assets/cae6c7c2-ac39-43ad-9cf4-771d505b6ae0" />
 
-| AI Summarization (Popup) | Dashboard & Graph |
-|:-----------------------:|:-----------------:|
-| <img width="1280" height="800" alt="1" src="https://github.com/user-attachments/assets/e43615f8-0b3d-4c46-b0be-43afa6332a9f" />
- | <img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/4269ab0f-d951-498c-9cd0-2a53556c0a11" />
- |
-
----
-
-## 🏗 System Architecture
+## System Architecture
 
 The system utilizes a microservices-like architecture containerized with Docker.
 
@@ -115,7 +111,7 @@ graph LR
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 To set up a local development environment, follow these steps.
 
@@ -165,7 +161,7 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 .
@@ -187,7 +183,7 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 🔥 Key Features
+## Key Features
 
 - [x] **Secure Authentication**: Seamless login via Google OAuth2 with secure token management.
 - [x] **AI Summarization**: Extracts key points, keywords, and sentiment from any news article page.
@@ -197,18 +193,18 @@ To set up a local development environment, follow these steps.
 
 ---
 
-## 📜 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
-## 📧 Contact
+## Contact
 
-**Project Lead** - [Your Name]
+**Project Lead** - Youngho Shin
 <br />
-**Email** - [Your Email]
+**Email** - younghoshin2001@gmail.com
 <br />
-**Project Link** - [https://github.com/your-username/news-node-knowledge](https://github.com/your-username/news-node-knowledge)
+**Project Link** - [https://github.com/dudghyoungho/news-node-knowledge](https://github.com/dudghyoungho/news-node-knowledge)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
