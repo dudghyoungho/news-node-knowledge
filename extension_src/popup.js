@@ -1,5 +1,7 @@
-const SERVER_URL = "https://news.young-dev.link";
+const SERVER_URL = CONFIG.API_BASE_URL;
 
+console.log(`[Popup] Current Env: ${CONFIG.ENV}`); // 확인용 로그
+console.log(`[Popup] Server URL: ${SERVER_URL}`);  // 확인용 로그
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements

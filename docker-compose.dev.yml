@@ -10,6 +10,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - ALLOWED_HOSTS=localhost 127.0.0.1 news.young-dev.link .young-dev.link 43.203.231.70
     dns:
       - 8.8.8.8
       - 8.8.4.4

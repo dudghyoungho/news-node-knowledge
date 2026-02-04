@@ -6,3 +6,7 @@ postgres_data/
 venv/
 .idea/
 .vscode/.env
+extension_build/
+
+extension_src/manifest.json
+extension_src/config.js

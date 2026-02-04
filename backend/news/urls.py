@@ -30,4 +30,5 @@ urlpatterns = [
     path('graph/', views.graph_page, name='graph_view'),
 
     path('privacy/', views.privacy_policy, name='privacy_policy'),
+    path('logs/', views.LogCreateView.as_view(), name='log-create'),
 ]

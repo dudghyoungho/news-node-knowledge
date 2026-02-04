@@ -33,6 +33,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+
+    # admin social settings
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     
     # [3rd Party Apps]
     'rest_framework',           
@@ -54,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -169,6 +177,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",
     "chrome-extension://onfldbkpmmcaepamcdfbkehekmpbmonj",
     "chrome-extension://flcnfkeekiohhhikkfkpihdmokopjgmc",
+    "chrome-extension://ngpaediapbkndhliglmnmgogljneopfl",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
@@ -189,3 +198,5 @@ else:
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+
+SITE_ID = 1
