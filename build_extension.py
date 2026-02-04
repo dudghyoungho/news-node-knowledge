@@ -1,74 +1,124 @@
 import os
 import shutil
 import sys
+import json
 
-# 1. 경로 설정
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.join(BASE_DIR, 'extension_src')
-BUILD_DIR = os.path.join(BASE_DIR, 'extension_build')
+# ==============================================================================
+# 1. 환경 설정 (CONFIGURATION)
+# ==============================================================================
 
-def build(env):
-    target_dir = os.path.join(BUILD_DIR, env)
+# 빌드 모드별 OAuth Client ID 설정
+OAUTH_CLIENT_IDS = {
+    "dev": "307150378715-6k7401oof17j9gvg9dd83cvduv7n79s4.apps.googleusercontent.com",
+    "prod": "307150378715-msus9lvuupid4a7et5avbhlabbml3l4s.apps.googleusercontent.com", # Server Test용
+    "store": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com" # Web Store 배포용
+}
+
+# 소스 및 빌드 디렉토리 설정
+SRC_DIR = "extension_src"
+BUILD_ROOT = "extension_build"
+
+# 복사할 파일 목록 (manifest.json은 로직에서 따로 처리하므로 리스트에 있어도 덮어씌워짐)
+FILES_TO_COPY = [
+    "popup.html",
+    "popup.js",
+    "content_script.js",
+    "background.js",
+    "config.js",
+    "icons",
+    "styles.css",
+    "icon16.png",
+    "icon48.png",
+    "icon128.png"
+]
+
+# ==============================================================================
+# 2. 빌드 로직 (BUILD LOGIC)
+# ==============================================================================
+
+def build(mode):
+    if mode not in OAUTH_CLIENT_IDS:
+        print(f"❌ Error: Invalid mode '{mode}'. Use 'dev', 'prod', or 'store'.")
+        sys.exit(1)
+
+    print(f"🚀 Building extension for [{mode.upper()}] environment...")
     
-    # 2. 기존 빌드 폴더 삭제 (Clean Build)
-    if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
-    os.makedirs(target_dir)
+    # 1. 빌드 폴더 준비 (기존 폴더 삭제 후 재생성)
+    dest_dir = os.path.join(BUILD_ROOT, mode)
+    if os.path.exists(dest_dir):
+        shutil.rmtree(dest_dir)
+    os.makedirs(dest_dir)
 
-    print(f"🔨 [{env.upper()}] 빌드를 시작합니다...")
-
-    # 3. 소스 파일 전체 복사
-    try:
-        shutil.copytree(
-            SRC_DIR, 
-            target_dir, 
-            dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns(
-                'manifest_*.json', 
-                'config_*.js',  # .js 파일 무시 확인
-                '__pycache__', 
-                '.DS_Store'
-            )
-        )
-    except Exception as e:
-        print(f"❌ 소스 복사 중 오류 발생: {e}")
-        return
-
-    # 4. 환경에 맞는 설정 파일 복사
-    try:
-        # (1) Manifest 처리 (.json -> .json)
-        src_manifest = os.path.join(SRC_DIR, f'manifest_{env}.json')
-        dst_manifest = os.path.join(target_dir, 'manifest.json')
+    # 2. 일반 파일 복사
+    for item in FILES_TO_COPY:
+        src_path = os.path.join(SRC_DIR, item)
+        dest_path = os.path.join(dest_dir, item)
         
-        if os.path.exists(src_manifest):
-            shutil.copy(src_manifest, dst_manifest)
-            print(f"   ✅ Manifest 적용: manifest_{env}.json -> manifest.json")
-        else:
-            print(f"   ❌ 오류: {src_manifest} 파일이 없습니다!")
-            return
+        if not os.path.exists(src_path):
+            print(f"⚠️ Warning: Source file not found: {src_path}")
+            continue
 
-        # (2) Config 처리 (.js -> .js) ★ 여기가 수정되었습니다!
-        src_config = os.path.join(SRC_DIR, f'config_{env}.js') # .json이 아니라 .js 입니다
-        dst_config = os.path.join(target_dir, 'config.js')
-        
-        if os.path.exists(src_config):
-            shutil.copy(src_config, dst_config)
-            print(f"   ✅ Config 적용: config_{env}.js -> config.js")
+        if os.path.isdir(src_path):
+            shutil.copytree(src_path, dest_path)
         else:
-            print(f"   ❌ 오류: {src_config} 파일이 없습니다!")
-            return
-            
-        print("-" * 40)
-        print(f"🎉 빌드 성공! 크롬에서 아래 폴더를 로드하세요:")
-        print(f"📂 {target_dir}")
-        print("-" * 40)
+            shutil.copy2(src_path, dest_path)
 
-    except Exception as e:
-        print(f"❌ 설정 파일 처리 중 오류 발생: {e}")
+    # 3. [핵심] config.js 수정 (환경 변수 주입)
+    config_src = os.path.join(SRC_DIR, "config.js")
+    config_dest = os.path.join(dest_dir, "config.js")
+    
+    # prod나 store나 서버 주소는 실제 서버(Lightsail)를 바라봐야 함
+    config_env = 'production' if mode in ['prod', 'store'] else 'development'
+    
+    with open(config_src, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # JS 파일 내부의 ENV 값을 문자열 치환
+    # 예: ENV: 'development' -> ENV: 'production'
+    new_content = content.replace("ENV: 'development'", f"ENV: '{config_env}'")
+    
+    with open(config_dest, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    
+    print(f"✅ config.js configured for {config_env}")
+
+    # 4. [핵심] manifest.json 수정 (OAuth Client ID 주입)
+    # 개발용과 배포용 manifest가 따로 있다면 여기서 분기 가능하지만,
+    # 보통 manifest.json 하나를 두고 ID만 바꿔치기 하는 것이 깔끔합니다.
+    manifest_src = os.path.join(SRC_DIR, "manifest.json")
+    
+    # 만약 dev용 manifest를 따로 쓰고 있었다면 그걸 base로 사용
+    if not os.path.exists(manifest_src) and os.path.exists(os.path.join(SRC_DIR, "manifest_dev.json")):
+        manifest_src = os.path.join(SRC_DIR, "manifest_dev.json")
+
+    manifest_dest = os.path.join(dest_dir, "manifest.json")
+
+    with open(manifest_src, 'r', encoding='utf-8') as f:
+        manifest_data = json.load(f)
+
+    # OAuth ID 교체 로직
+    target_client_id = OAUTH_CLIENT_IDS[mode]
+    
+    if "oauth2" not in manifest_data:
+        manifest_data["oauth2"] = {}
+    
+    manifest_data["oauth2"]["client_id"] = target_client_id
+    
+    # [중요] Store 배포용이 아니면 'key' 필드 유지 (개발 편의성)
+    # Store 배포용일 때는 'key' 필드를 제거하는 것이 좋을 수도 있음 (Store가 자동으로 부여하므로)
+    if mode == 'store' and 'key' in manifest_data:
+        del manifest_data['key']
+        print("ℹ️ Removed 'key' field for Store build.")
+
+    with open(manifest_dest, 'w', encoding='utf-8') as f:
+        json.dump(manifest_data, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ manifest.json updated with Client ID: {target_client_id[:15]}...")
+    print(f"✨ Build Complete! Output directory: {dest_dir}")
 
 if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) > 1 else 'dev'
-    if mode not in ['dev', 'prod']:
-        print("사용법: python build_extension.py [dev|prod]")
-    else:
-        build(mode)
+    if len(sys.argv) < 2:
+        print("Usage: python build_extension.py [dev|prod|store]")
+        sys.exit(1)
+    
+    build(sys.argv[1])
