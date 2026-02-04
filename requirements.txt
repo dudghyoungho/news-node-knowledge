@@ -13,3 +13,6 @@ django-cors-headers
 numpy
 trafilatura
 whitenoise
+django-allauth
+PyJWT
+cryptography

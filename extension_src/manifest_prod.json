@@ -1,0 +1,43 @@
+{
+    "manifest_version": 3,
+    "name": "News Node Knowledge - AI News Archiver",
+    "version": "1.2.1",
+    "description": "Summarize news with AI and build your own Knowledge Graph.",
+    "permissions": [
+      "activeTab",
+      "identity",
+      "storage"
+    ],
+    "oauth2": {
+      "client_id": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com",
+      "scopes": [
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile"
+      ]
+    },
+    "host_permissions": [
+      "https://news.young-dev.link/*"
+    ],    
+    "background": { "service_worker": "background.js" },
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Summarize Article",
+      "default_icon": {
+          "16": "icon16.png", 
+          "48": "icon48.png",
+          "128": "icon128.png"
+      } 
+    },
+    "content_scripts": [
+      {
+        "matches": ["*://n.news.naver.com/*", "*://news.daum.net/*"],
+        "js": ["config.js", "content_script.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "icons": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  }
