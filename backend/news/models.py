@@ -68,3 +68,61 @@ class Article(models.Model):
                 name='unique_user_article_url'
             )
         ]
+
+
+# ==========================================
+# 2. UserActionLog: 추천 모델 학습을 위한 행동 로그 (NEW)
+# ==========================================
+class UserActionLog(models.Model):
+    """
+    사용자가 뉴스를 읽을 때 발생하는 행동 데이터를 수집합니다.
+    Article 모델과 달리, '요약'하지 않은 단순 열람 기록도 모두 포함됩니다.
+    Two-Tower 추천 모델의 학습 데이터(Training Data)로 사용됩니다.
+    """
+    
+    # [식별 정보]
+    # 개인정보 보호: 이메일 등이 아닌 내부 User ID(Integer)만 외래키로 저장
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='action_logs',
+        db_index=True
+    )
+
+    # [기사 정보]
+    # Article 모델과 FK를 맺지 않는 이유: 
+    # 사용자가 아직 '저장'하지 않은 기사(Article DB에 없는 기사)도 로그를 남겨야 하기 때문입니다.
+    article_url = models.URLField(max_length=500, help_text="방문한 기사 URL")
+    
+    # 지역 정보 (추천 시 한국/호주 뉴스 구분용)
+    region = models.CharField(
+        max_length=10,
+        choices=Article.Region.choices,
+        default=Article.Region.KR
+    )
+
+    # [행동 지표 - Implicit Feedback]
+    dwell_time = models.IntegerField(default=0, help_text="체류 시간 (초 단위)")
+    scroll_depth = models.IntegerField(default=0, help_text="스크롤 깊이 (0~100%)")
+    click_count = models.IntegerField(default=0, help_text="페이지 내 클릭/상호작용 횟수")
+    
+    # [유효성 판단]
+    # 30초 이상 체류하거나 스크롤을 80% 이상 내린 경우 True (학습 시 Positive Sample로 활용)
+    is_valid_view = models.BooleanField(default=False)
+
+    # [메타 데이터]
+    timestamp = models.DateTimeField(auto_now_add=True, help_text="로그 발생 시간")
+
+    def __str__(self):
+        return f"Log: {self.user_id} - {self.dwell_time}s - {self.article_url[:30]}..."
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            # 1. 학습 데이터 추출용: 특정 기간, 특정 유저의 로그 조회 속도 최적화
+            models.Index(fields=['user', 'timestamp']),
+            # 2. 기사별 인기 분석용
+            models.Index(fields=['article_url']),
+            # 3. 지역별 학습 데이터 분리용
+            models.Index(fields=['region']),
+        ]
