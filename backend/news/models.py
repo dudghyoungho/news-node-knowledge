@@ -110,9 +110,21 @@ class UserActionLog(models.Model):
     # 30초 이상 체류하거나 스크롤을 80% 이상 내린 경우 True (학습 시 Positive Sample로 활용)
     is_valid_view = models.BooleanField(default=False)
 
-    # [메타 데이터]
-    timestamp = models.DateTimeField(auto_now_add=True, help_text="로그 발생 시간")
+    # [NEW] 메타데이터 필드 추가 (수집된 정보 저장용)
+    # 제목: 필수 요소에 가깝지만, 크롤링 실패 대비 null 허용
+    title = models.CharField(max_length=500, null=True, blank=True)
+    
+    # 설명: 네이버 연예/스포츠는 없을 수 있음 -> null=True 필수
+    description = models.TextField(null=True, blank=True)
+    
+    # 썸네일: UI용으로 있으면 좋음 (Guardian/News.com.au는 잘 줌)
+    image_url = models.URLField(max_length=1000, null=True, blank=True)
+    
+    # 카테고리: 정치, 경제, Sport, World 등
+    category = models.CharField(max_length=100, default='General', null=True, blank=True)
 
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
     def __str__(self):
         return f"Log: {self.user_id} - {self.dwell_time}s - {self.article_url[:30]}..."
 

@@ -14,6 +14,12 @@ class UserActionLogSerializer(serializers.ModelSerializer):
             'scroll_depth', 
             'click_count', 
             'is_valid_view',
-            'region' # 호주/한국 구분용
+            'region',
+            'title',
+            'description',
+            'image_url',
+            'category',
+            'timestamp'
         ]
+        read_only_fields = ['id', 'timestamp'] # 유저가 보낼 필요 없는 필드들
         # user는 request에서 자동으로 가져오므로 fields에 넣지 않거나 read_only로 뺍니다.

@@ -14,10 +14,10 @@ class LogCreateView(generics.CreateAPIView):
     serializer_class = UserActionLogSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def create(self, request, *args, **kwargs):
+        print(f"\n>>> [DEBUG] Incoming Log Data: {request.data}")
+        # title이나 category가 들어있는지 터미널에서 확인하세요!
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        """
-        데이터 저장 시점(save)에 호출됩니다.
-        Request를 보낸 유저(self.request.user) 정보를 
-        모델의 user 필드에 강제로 주입합니다.
-        """
         serializer.save(user=self.request.user)
