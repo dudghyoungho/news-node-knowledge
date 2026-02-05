@@ -1,10 +1,9 @@
 // extension_src/content_script.js
 
-// 1. [상수 박제] URL 변조 방지
 const CURRENT_PAGE_URL = window.location.href.split('?')[0];
 const START_TIME = Date.now();
 
-console.log(`[NewsNode] Tracking started for: ${CURRENT_PAGE_URL}`);
+console.log(`[NewsNode] Script loaded for: ${CURRENT_PAGE_URL}`);
 
 // 측정 변수
 let maxScroll = 0;
@@ -15,7 +14,7 @@ let isLogSent = false;
 let cachedToken = null;
 let cachedRegion = 'KR';
 
-// 2. 설정 로드
+// 설정 로드
 chrome.storage.local.get(['api_token', 'region'], function(result) {
     if (result.api_token) cachedToken = result.api_token;
     if (result.region) cachedRegion = result.region;
@@ -28,39 +27,85 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
-// 3. [NEW] 메타데이터 추출 함수 (빠져있던 부분!)
+// 1. 메타데이터 추출 함수
 function extractMetaData() {
     const getMeta = (prop) => {
         return document.querySelector(`meta[property="${prop}"]`)?.content || 
                document.querySelector(`meta[name="${prop}"]`)?.content || '';
     };
 
-    // A. 카테고리 (Guardian, News.com.au 표준 + 네이버 예외처리)
+    // A. 카테고리
     let category = getMeta("article:section"); 
     if (!category) {
-        // 네이버 뉴스
         const naverChannel = document.querySelector(".media_end_head_top_channel");
         if (naverChannel) category = naverChannel.innerText;
-        // 네이버 스포츠/연예
         const naverMenu = document.querySelector(".Nlnb_menu_list .Nitem_link[aria-selected='true']");
         if (naverMenu) category = naverMenu.innerText;
     }
 
-    // B. 제목, 설명, 이미지
-    let title = getMeta("og:title") || document.title;
-    let description = getMeta("og:description");
-    let image_url = getMeta("og:image");
-
+    // B. 기본 정보
     return {
-        title: title,
-        description: description,
-        image_url: image_url,
-        category: category || 'General'
+        title: getMeta("og:title") || document.title,
+        description: getMeta("og:description"),
+        image_url: getMeta("og:image"),
+        category: category || 'General',
+        
+        // [필터링용] 타입과 발행일 추가 추출
+        og_type: getMeta("og:type"),
+        published_time: getMeta("article:published_time")
     };
 }
 
-// 4. 이벤트 리스너
+// 2. [핵심] 기사 페이지 판별 함수 (사이트별 맞춤 로직)
+function isTargetArticle(metaInfo) {
+    const url = CURRENT_PAGE_URL;
+
+    // A. The Guardian 판별 로직
+    if (url.includes('theguardian.com')) {
+        // 사용자 요청: description이 없으면 기사가 아님 (메인/섹션 페이지)
+        if (!metaInfo.description || metaInfo.description.trim() === '') {
+            console.log("[NewsNode] Filtered: Guardian main/section page (No description)");
+            return false;
+        }
+        // 추가: URL에 연도(숫자 4자리)가 없으면 기사가 아닐 확률 높음
+        if (!/\/\d{4}\//.test(url)) return false;
+    }
+
+    // B. news.com.au 판별 로직
+    if (url.includes('news.com.au')) {
+        // 사용자 요청: 다 채워져 있어서 구분이 어려움 -> '발행일'과 '타입'으로 구분
+        
+        // 1. og:type이 'article'이 아니면(website 등) 버림
+        if (metaInfo.og_type && metaInfo.og_type !== 'article') {
+            console.log(`[NewsNode] Filtered: og:type is '${metaInfo.og_type}'`);
+            return false;
+        }
+
+        // 2. 발행일(published_time)이 없으면 버림 (메인 페이지는 발행일이 없음)
+        if (!metaInfo.published_time) {
+            console.log("[NewsNode] Filtered: No article:published_time found");
+            return false;
+        }
+
+        // 3. URL 패턴 보조 확인 (/story/ 포함 여부)
+        if (!url.includes('/story/') && !url.includes('/news-story/')) {
+             return false;
+        }
+    }
+
+    // C. 네이버 (이미 manifest에서 걸렀지만 안전장치)
+    if (url.includes('naver.com') && !url.includes('/article/')) {
+        return false;
+    }
+
+    return true;
+}
+
+// 3. 이벤트 리스너
 document.addEventListener('DOMContentLoaded', () => {
+    // DOM 로드 직후 바로 체크하지 않음 (메타 태그가 늦게 뜰 수 있음)
+    // sendLog 시점에 체크하도록 변경하여 리소스 절약
+    
     window.addEventListener('scroll', () => {
         if (!document.body) return;
         let scrollPercent = Math.round((window.scrollY + window.innerHeight) / document.body.scrollHeight * 100);
@@ -72,20 +117,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// 5. 로그 전송 함수
+// 4. 로그 전송 함수
 function sendLog() {
     if (isLogSent) return;
 
     let duration = Math.round((Date.now() - START_TIME) / 1000);
+    // 7초 미만 무시
     if (duration < 7) return;
 
-    if (!cachedToken) {
-        if (typeof CONFIG !== 'undefined' && CONFIG.ENV === 'development') console.log("[NewsNode] No token. Skip.");
+    if (!cachedToken) return;
+
+    // ★ 메타데이터 추출 및 필터링 수행
+    const metaInfo = extractMetaData();
+
+    // ★ [여기서 필터링] 기사가 아니면 전송 중단
+    if (!isTargetArticle(metaInfo)) {
+        // 이미 7초가 지났으니, 기사가 아니라고 판단되면 깃발 꽂고 종료 (더 이상 체크 안함)
+        isLogSent = true; 
         return;
     }
-
-    // ★ [핵심 수정] 메타데이터 추출 실행
-    const metaInfo = extractMetaData();
 
     const logData = {
         article_url: CURRENT_PAGE_URL,
@@ -94,8 +144,6 @@ function sendLog() {
         click_count: clickCount,
         is_valid_view: duration >= 30,
         region: cachedRegion,
-
-        // ★ [핵심 수정] 추출한 메타데이터를 여기에 실어야 백엔드로 갑니다!
         title: metaInfo.title,
         description: metaInfo.description,
         image_url: metaInfo.image_url,
@@ -115,7 +163,7 @@ function sendLog() {
     });
 }
 
-// 6. 이탈 감지
+// 5. 이탈 감지
 window.addEventListener('beforeunload', sendLog);
 window.addEventListener('pagehide', sendLog);
 document.addEventListener('visibilitychange', function() {
@@ -124,7 +172,6 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-// 테스트용 L키
 window.addEventListener('keydown', function(e) {
     if (e.key === 'l' || e.key === 'L') {
         isLogSent = false;
