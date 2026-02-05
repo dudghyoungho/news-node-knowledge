@@ -11,6 +11,17 @@ class Article(models.Model):
     class Region(models.TextChoices):
         KR = 'KR', 'South Korea'
         AU = 'AU', 'Australia'
+    
+    class Source(models.TextChoices):
+        USER_SAVED = 'USER', '사용자 직접 저장'  # 유저가 확장프로그램/앱에서 저장
+        RSS_CRAWLED = 'RSS', 'RSS 자동 수집'   # 서버가 긁어온 추천 후보군
+
+    source = models.CharField(
+        max_length=10,
+        choices=Source.choices,
+        default=Source.USER_SAVED,
+        help_text="기사 수집 출처 (RSS: 추천 후보군, USER: 사용자 보관함)"
+    )
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
