@@ -1,6 +1,7 @@
 from django.conf import settings
 import os
 from openai import OpenAI
+from sentence_transformers import SentenceTransformer
 
 # 전역 클라이언트 사용 (settings의 키 사용)
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -10,6 +11,19 @@ if not settings.configured:
     import dotenv
     dotenv.load_dotenv()
 
+_local_embedding_model = None
+
+def get_local_model():
+    """
+    싱글톤 패턴: 모델이 메모리에 없으면 로드하고, 있으면 반환합니다.
+    """
+    global _local_embedding_model
+    if _local_embedding_model is None:
+        print("🏗️ PyTorch 로컬 모델 로딩 중... (최초 1회만 실행)")
+        # 이미 받아둔 캐시가 있다면 빠르게 로드됩니다.
+        _local_embedding_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+        print("✅ 모델 로딩 완료!")
+    return _local_embedding_model
 
 def classify_news(text, region='KR'):
     """
@@ -127,25 +141,52 @@ def summarize_stream(text, region='KR'):
         yield error_msg
 
 
-def get_embedding(text):
+def get_embedding(text, use_openai=True, use_pytorch=True):
     """
-    텍스트를 벡터 리스트로 반환한다. 모델 : text-embedding-3-small
-    (임베딩은 언어 무관하게 동작하므로 로직 변경 없음)
+    [핵심 변경]
+    텍스트를 받아 PyTorch(로컬)와 OpenAI(API) 임베딩을 동시에 생성합니다.
+    나중에 성능 비교를 위해 두 가지 버전을 모두 반환합니다.
+    
+    Returns:
+        dict: {'pytorch': [...], 'openai': [...]}
     """
+    result = {
+        'pytorch': None,
+        'openai': None
+    }
+    
     try:
-        if not text: return None
-        text = text.replace("\n"," ")
-        response = client.embeddings.create(
-            input=[text],
-            model = "text-embedding-3-small"
-        )
+        if not text: return result
+        clean_text = text.replace("\n", " ")
 
-        vector = response.data[0].embedding_openai
-        return vector
+        # 1. PyTorch 임베딩 (Local - 768차원)
+        if use_pytorch:
+            try:
+                model = get_local_model() # 싱글톤 모델 호출
+                # tolist()를 해야 DB(pgvector)에 JSON 호환 리스트로 들어갑니다.
+                vector_pt = model.encode(clean_text).tolist()
+                result['pytorch'] = vector_pt
+            except Exception as e:
+                print(f"⚠️ PyTorch 임베딩 실패: {e}")
+
+        # 2. OpenAI 임베딩 (API - 1536차원) - 비교 및 백업용
+        if use_openai:
+            try:
+                response = client.embeddings.create(
+                    input=[clean_text],
+                    model="text-embedding-3-small"
+                )
+                # 주의: response.data[0].embedding_openai가 아니라 .embedding 입니다.
+                vector_oa = response.data[0].embedding
+                result['openai'] = vector_oa
+            except Exception as e:
+                print(f"⚠️ OpenAI 임베딩 실패: {e}")
+
+        return result
     
     except Exception as e:
-        print(f"임베딩 생성 실패 : {e}")
-        return None
+        print(f"임베딩 생성 전체 실패: {e}")
+        return result
     
 def get_completion(prompt, system_role=None, temperature=0.7):
     """

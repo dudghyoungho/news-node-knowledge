@@ -1,5 +1,3 @@
-# backend/news/rss_tasks.py
-
 import feedparser
 import time
 import random
@@ -8,8 +6,10 @@ from datetime import datetime
 from django.contrib.auth import get_user_model
 from .models import Article
 from .rss_config import RSS_FEEDS
-# [수정] crawler에서 헤더 생성 함수 가져오기 (일관성 유지)
-from .crawler import extract_article, get_headers 
+# [기존] 크롤러 헤더 가져오기
+from .crawler import extract_article, get_headers
+# [신규] AI 분류 함수 임포트
+from .ai_service import classify_news
 
 User = get_user_model()
 
@@ -28,11 +28,10 @@ def run_rss_collector():
         
         try:
             # 1. RSS XML 다운로드
-            # crawler.py와 동일한 헤더(User-Agent)를 사용하여 차단 회피
             response = requests.get(
                 feed_config['url'], 
                 headers=get_headers(), 
-                timeout=20 # 타임아웃 넉넉하게 (해외 사이트 고려)
+                timeout=20 
             )
             
             if response.status_code != 200:
@@ -52,49 +51,28 @@ def run_rss_collector():
                  print("   -> 🚨 Blocked (HTML response received)")
             continue
 
-        # =========================================================
-        # [로직 변경] URL 파라미터 보존 (Trust Original Link)
-        # =========================================================
-        # 이제 다양한 소스(Reddit, Donga, MK 등)를 다루므로,
-        # ? 뒤를 함부로 자르면 링크가 깨지거나(404) 중복으로 오인될 수 있습니다.
-        # RSS가 주는 링크를 그대로 믿는 것이 가장 안전합니다.
-        
+        # URL 파라미터 보존 로직 (기존 유지)
         rss_entries_map = {}
         for entry in feed.entries:
-            # 링크가 없는 항목 방어
-            if not hasattr(entry, 'link'):
-                continue
-
-            # 원본 링크 그대로 사용
+            if not hasattr(entry, 'link'): continue
             target_link = entry.link
-            
-            # [선택] 명백한 추적 코드는 제거하고 싶다면 아래처럼 보수적으로 처리
-            # (하지만 RSS 링크는 보통 Clean하므로 그대로 두는 것을 추천)
-            # if "utm_source" in target_link:
-            #     target_link = target_link.split('?utm_source')[0]
-
             rss_entries_map[target_link] = entry
 
-        # =========================================================
-        # Bulk Check (DB 조회 최적화)
-        # =========================================================
+        # Bulk Check (기존 유지)
         target_urls = list(rss_entries_map.keys())
-        
-        # 이미 DB에 있는 URL들을 한 번에 조회
         existing_urls = set(
             Article.objects.filter(url__in=target_urls)
                            .values_list('url', flat=True)
         )
 
         # =========================================================
-        # 크롤링 및 저장
+        # 크롤링 및 AI 분류 저장
         # =========================================================
         for clean_url, entry in rss_entries_map.items():
             
             if clean_url in existing_urls:
-                # 제목 출력 시 길이 제한 안전장치
                 title_preview = getattr(entry, 'title', 'No Title')[:20]
-                print(f"   - Skipped (Exists): {title_preview}...")
+                # print(f"   - Skipped (Exists): {title_preview}...") # 로그 너무 길면 주석 처리
                 continue
 
             title = getattr(entry, 'title', 'No Title')
@@ -107,6 +85,22 @@ def run_rss_collector():
                 print("     -> Failed (No Content or Filtered)")
                 continue
 
+            # -------------------------------------------------------------
+            # [핵심 수정] 정공법: AI에게 정밀 카테고리 분류 요청
+            # -------------------------------------------------------------
+            try:
+                # RSS 설정에 있는 region 정보를 넘겨줘야 한국어/영어 카테고리를 정확히 구분함
+                # 예: 'Economy' -> AI 분류 -> '주식/투자' or 'Real Estate'
+                refined_category = classify_news(data['content'], region=feed_config['region'])
+                
+                # 로그로 확인 (기존 RSS 대분류 -> AI 세분류)
+                print(f"     -> [AI Classify] {feed_config.get('category_base')} ➡️  {refined_category}")
+                
+            except Exception as e:
+                print(f"     -> [AI Error] 분류 실패, 기본값 사용: {e}")
+                refined_category = feed_config['category_base']
+
+            # 저장
             try:
                 Article.objects.create(
                     user=system_user,
@@ -116,16 +110,18 @@ def run_rss_collector():
                     title=data['title'],
                     content=data['content'],
                     thumbnail_url=data['thumbnail_url'],
-                    category=feed_config['category_base'],
+                    
+                    # [변경] RSS Config의 기본값이 아니라, AI가 정해준 정밀 카테고리로 저장
+                    category=refined_category, 
+                    
                     status=Article.Status.PENDING
                 )
                 total_count += 1
                 
-                # 사이트 부하 방지를 위한 랜덤 딜레이
+                # AI 호출 및 사이트 부하 고려 딜레이 (1~2초)
                 time.sleep(random.uniform(1.0, 2.0))
                 
             except Exception as e:
-                # 유니크 제약조건 등 DB 에러 방어
                 if "unique" in str(e).lower():
                     print("     -> Skipped (Duplicate in DB)")
                 else:
