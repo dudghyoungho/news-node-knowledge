@@ -16,3 +16,6 @@ whitenoise
 django-allauth
 PyJWT
 cryptography
+feedparser
+torch
+sentence-transformers

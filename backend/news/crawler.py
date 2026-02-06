@@ -1,3 +1,4 @@
+# backend/news/crawler.py
 import requests
 import trafilatura
 import random
@@ -5,19 +6,38 @@ import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-# [차단 방지] User-Agent 로테이션 (RSS 대량 수집 시 필수)
+# [차단 방지 1] 최신 브라우저 User-Agent로 교체 (2024~2025년 기준)
+# 구형 UA를 쓰면 보안 솔루션이 "업데이트 안 된 수상한 봇"으로 간주할 수 있음
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+    # Chrome (Windows)
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    # Chrome (Mac)
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    # Firefox (Windows)
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+    # Safari (Mac)
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+    # Edge (Windows)
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0'
 ]
 
 def get_headers():
+    """
+    [차단 방지 2] 실제 브라우저처럼 보이게 하는 정교한 헤더 설정
+    단순히 User-Agent만 보내는 게 아니라, Accept, Language 등을 같이 보내야 봇 탐지를 피함.
+    """
     return {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.google.com/"
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br", # 압축 전송 지원 (대역폭 절약)
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none", # 직접 주소창에 쳐서 들어온 것처럼 위장
+        "Sec-Fetch-User": "?1",
+        "Connection": "keep-alive"
+        # Referer는 제거: RSS에서 직접 들어오는 경우 Referer가 없는 게 더 자연스러움
     }
 
 def extract_article(url):
@@ -32,90 +52,136 @@ def extract_article(url):
 
 def _extract_general(url):
     """
-    호주 뉴스, 글로벌 사이트 및 Google News 대응 범용 추출기
+    [강화된 버전] 호주 뉴스, 글로벌 사이트 및 Hacker News 대응 범용 추출기
     """
+    
+    # 1. 파일 확장자 차단 (PDF 등 바이너리 파일 스킵)
+    skip_extensions = ('.pdf', '.jpg', '.png', '.gif', '.mp4', '.avi', '.zip', '.exe', '.dmg', '.apk')
+    if url.lower().endswith(skip_extensions):
+        return None
+
+    # 2. 소스코드 저장소 제외
+    if "github.com" in url or "gitlab.com" in url:
+        return None
+
+    # 3. [블랙리스트] 뉴스레터 가입 페이지 등 제외
+    blacklist_keywords = [
+        "Sign up for", 
+        "newsletter", 
+        "Subscribe to",
+        "Morning Mail",
+        "Afternoon Update",
+        "Log In", # 로그인 페이지 제외
+        "Register"
+    ]
+    
+    if any(bad_word.lower() in url.lower() for bad_word in blacklist_keywords):
+        return None
+    
     try:
-        # 1. Trafilatura로 1차 시도 (가장 깔끔함)
-        downloaded = trafilatura.fetch_url(url)
+        downloaded = None
         
-        # 2. 실패 시 requests로 2차 시도 (헤더 변경 + 리다이렉트 허용)
-        # Google News 링크는 리다이렉트가 필수이므로 requests가 유리할 때가 있음
-        if downloaded is None:
-            try:
-                # allow_redirects=True: 구글 뉴스 단축 URL 등을 따라가서 원본을 가져옴
-                response = requests.get(url, headers=get_headers(), timeout=15, allow_redirects=True)
-                if response.status_code == 200:
-                    downloaded = response.text
-                else:
-                    print(f"   [Fail] Status {response.status_code} for {url}")
-                    return None
-            except Exception as e:
-                print(f"   [Request Error] {e}")
+        # 4. Requests로 안전하게 다운로드
+        try:
+            response = requests.get(
+                url, 
+                headers=get_headers(), 
+                # (접속 5초, 다운로드 15초) -> 해외 사이트 느림 고려하여 약간 늘림
+                timeout=(5, 15), 
+                allow_redirects=True,
+                stream=True 
+            )
+            
+            # HTML 형식이 아니면 중단
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'text/html' not in content_type:
+                response.close()
                 return None
 
-        # 3. 본문 및 메타데이터 추출
-        result = trafilatura.extract(
-            downloaded, 
-            include_comments=False,
-            include_tables=False,
-            output_format='json',
-            with_metadata=True
-        )
-        
-        if not result:
-            return None
-
-        data = json.loads(result)
-
-        title = data.get('title') or "No Title"
-        content = data.get('text') or ""
-        image_url = data.get('image')
-
-        # 4. 이미지 추출 보강 (BS4)
-        # Trafilatura가 이미지를 놓치는 경우가 있어 og:image를 2차로 확인
-        if not image_url:
-            soup = BeautifulSoup(downloaded, 'html.parser')
-            og_img = soup.select_one('meta[property="og:image"]')
-            if og_img:
-                image_url = og_img.get('content')
+            if response.status_code == 200:
+                # 10MB 제한
+                if len(response.content) > 10 * 1024 * 1024: 
+                    response.close()
+                    return None
+                    
+                response.encoding = response.apparent_encoding
+                downloaded = response.text
             else:
-                # 트위터 카드 이미지 시도
-                tw_img = soup.select_one('meta[name="twitter:image"]')
-                if tw_img:
-                    image_url = tw_img.get('content')
+                # 403 Forbidden 등 에러 시
+                return None
 
-        # 5. [안전장치] 데이터 정제 및 필터링
-        
-        # A. 내용이 너무 짧으면 버림 (300자 미만은 뉴스 가치 없음 / 에러 페이지일 확률 높음)
-        if len(content) < 300:
-            # print(f"   [Skip] Too short ({len(content)} chars)")
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            return None
+        except Exception:
             return None
 
-        # B. 이미지 URL 절대경로 변환 (/img/logo.png -> https://site.com/img/logo.png)
-        if image_url and not image_url.startswith('http'):
-            image_url = urljoin(url, image_url)
+        # 5. Trafilatura 추출 (본문 파싱)
+        if downloaded:
+            result = trafilatura.extract(
+                downloaded, 
+                include_comments=False,
+                include_tables=False,
+                output_format='json',
+                with_metadata=True
+            )
+            
+            if not result:
+                return None
 
-        # C. DB 에러 방지: 이미지 URL이 1000자를 넘으면 버림 (Guardian 해시 URL 등)
-        if image_url and len(image_url) > 990:
-            image_url = None
+            data = json.loads(result)
+            
+            title = data.get('title') or "No Title"
+            content = data.get('text') or ""
+            image_url = data.get('image')
 
-        return {
-            "title": title[:500], # 제목 길이 안전장치
-            "content": content,
-            "thumbnail_url": image_url
-        }
+            # 6. 이미지 추출 보강 (Trafilatura 실패 시 BS4 사용)
+            if not image_url:
+                soup = BeautifulSoup(downloaded, 'html.parser')
+                og_img = soup.select_one('meta[property="og:image"]')
+                if og_img:
+                    image_url = og_img.get('content')
+                else:
+                    tw_img = soup.select_one('meta[name="twitter:image"]')
+                    if tw_img:
+                        image_url = tw_img.get('content')
 
-    except Exception as e:
-        print(f"   [Crawl Error] {e}")
+            # 7. 데이터 품질 체크
+            
+            # [블랙리스트 2차] 제목에 광고성 문구 있으면 제외
+            if any(bad_word in title for bad_word in blacklist_keywords):
+                return None
+
+            # [길이 완화] 400자 -> 250자
+            # 영문 기사는 짧고 굵은 경우가 많고(Reddit 요약 등), 
+            # 400자로 하면 Insight 있는 짧은 칼럼을 놓칠 수 있음.
+            if len(content) < 250:
+                return None
+
+            # 이미지 URL 절대경로 변환
+            if image_url and not image_url.startswith('http'):
+                image_url = urljoin(url, image_url)
+
+            # URL 길이 제한
+            if image_url and len(image_url) > 990:
+                image_url = None
+
+            return {
+                "title": title[:500],
+                "content": content,
+                "thumbnail_url": image_url
+            }
+
+        return None
+
+    except Exception:
         return None
 
 
 def _extract_naver_specific(url):
     """
-    네이버 전용 크롤러 (기존 로직 유지 + 안전장치 추가)
+    네이버 전용 크롤러 (기존 로직 유지)
     """
     try:
-        # 네이버도 랜덤 헤더 적용
         response = requests.get(url, headers=get_headers(), timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -126,7 +192,6 @@ def _extract_naver_specific(url):
         image_meta = soup.select_one('meta[property="og:image"]')
         image_url = image_meta.get('content') if image_meta else None
 
-        # [안전장치] 이미지 길이 체크
         if image_url and len(image_url) > 990:
             image_url = None
 
@@ -146,7 +211,6 @@ def _extract_naver_specific(url):
             
         content = content_element.get_text(separator='\n', strip=True)
         
-        # 네이버 뉴스도 너무 짧으면 버림
         if len(content) < 100:
             return None
 
@@ -155,6 +219,5 @@ def _extract_naver_specific(url):
             "content": content,
             "thumbnail_url": image_url
         }
-    except Exception as e:
-        print(f"   [Naver Error] {e}")
+    except Exception:
         return None
