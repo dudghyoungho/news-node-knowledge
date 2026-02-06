@@ -140,7 +140,7 @@ def get_embedding(text):
             model = "text-embedding-3-small"
         )
 
-        vector = response.data[0].embedding
+        vector = response.data[0].embedding_openai
         return vector
     
     except Exception as e:

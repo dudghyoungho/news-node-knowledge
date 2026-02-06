@@ -54,8 +54,9 @@ class Article(models.Model):
     category = models.CharField(max_length=100, blank=True, null=True, help_text="AI 분류")
     
     # 벡터 데이터 (OpenAI: 1536차원)
-    embedding = VectorField(dimensions=1536, blank=True, null=True)
-
+    embedding_openai = VectorField(dimensions=1536, blank=True, null=True)
+    # pytorch로 직접 다룰 필드 (768차원)
+    embedding_pytorch = VectorField(dimensions=768, blank=True, null=True)
     # [수정 3] ★ 핵심 수정 ★: 썸네일 URL 200자 -> 1000자 확장
     # Guardian 등의 이미지 URL은 해시값이 포함되어 500자도 넘을 수 있음
     thumbnail_url = models.URLField(max_length=1000, blank=True, null=True)

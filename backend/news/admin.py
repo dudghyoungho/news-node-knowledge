@@ -5,10 +5,38 @@ from .models import Article, UserActionLog
 # 1. 기사(Article) 관리자 (기존 유지 + 일부 개선)
 @admin.register(Article)
 class ArticleAdmin(admin.ModelAdmin):
-    list_display = ('id', 'region', 'title', 'category', 'user', 'status', 'created_at')
-    list_filter = ('region', 'status', 'category')
-    search_fields = ('title', 'url', 'user__username')
-    readonly_fields = ('embedding',) # 벡터 데이터는 수정 불가
+    # 1. 목록 화면 설정
+    list_display = ('title', 'category', 'created_at', 'status', 'has_vector')
+    list_filter = ('category', 'status', 'region', 'created_at')
+    search_fields = ('title', 'content')
+    
+    # 2. 상세 화면 설정 (에러 방지를 위해 벡터 필드 숨김)
+    exclude = ('embedding_pytorch', 'embedding_openai')
+    readonly_fields = ('created_at', 'vector_status_display')
+
+    # [수정된 부분] 목록 화면용 함수 (아이콘 표시)
+    def has_vector(self, obj):
+        # "값이 있는가?"를 명확하게 검사
+        return obj.embedding_pytorch is not None
+    has_vector.boolean = True
+    has_vector.short_description = "벡터 생성됨"
+
+    # [수정된 부분] 상세 화면용 함수 (텍스트 표시)
+    def vector_status_display(self, obj):
+        status = []
+        
+        # ⚠️ 중요: if obj.field: 대신 if obj.field is not None: 을 써야 합니다!
+        if obj.embedding_pytorch is not None:
+            status.append(f"✅ PyTorch 벡터 생성완료 (768차원)")
+        else:
+            status.append("❌ PyTorch 벡터 없음")
+            
+        if obj.embedding_openai is not None:
+            status.append(f"✅ OpenAI 벡터 생성완료 (1536차원)")
+        
+        return "\n".join(status)
+    
+    vector_status_display.short_description = "임베딩 상태"
 
 # 2. [핵심] 로그(UserActionLog) 관리자 - 메타데이터 확인용
 @admin.register(UserActionLog)

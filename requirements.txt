@@ -17,5 +17,5 @@ django-allauth
 PyJWT
 cryptography
 feedparser
-torch
+torch --index-url https://download.pytorch.org/whl/cpu
 sentence-transformers
