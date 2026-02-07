@@ -1,6 +1,7 @@
 import torch
 from django.core.management.base import BaseCommand
 from sentence_transformers import SentenceTransformer
+from news.ai_service import get_local_model
 from news.models import Article
 import time
 
@@ -11,7 +12,7 @@ class Command(BaseCommand):
         # 1. AI 모델 로딩
         self.stdout.write("🏗️  AI 모델을 불러오는 중입니다... (paraphrase-multilingual-mpnet-base-v2)")
         # Lightsail 사양에 따라 처음 실행 시 모델 다운로드에 시간이 걸릴 수 있습니다.
-        model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+        model = get_local_model()
         
         # 2. 새로운 필드(embedding_pytorch)가 비어있는 기사들만 필터링
         # 이전에 embedding이었던 부분을 embedding_pytorch__isnull로 변경했습니다.

@@ -60,45 +60,47 @@ function extractMetaData() {
 function isTargetArticle(metaInfo) {
     const url = CURRENT_PAGE_URL;
 
-    // A. The Guardian 판별 로직
+    // 1. [기존] 특정 사이트별 정밀 로직 (우선 적용)
+    // A. The Guardian
     if (url.includes('theguardian.com')) {
-        // 사용자 요청: description이 없으면 기사가 아님 (메인/섹션 페이지)
-        if (!metaInfo.description || metaInfo.description.trim() === '') {
-            console.log("[NewsNode] Filtered: Guardian main/section page (No description)");
-            return false;
-        }
-        // 추가: URL에 연도(숫자 4자리)가 없으면 기사가 아닐 확률 높음
+        if (!metaInfo.description) return false;
         if (!/\/\d{4}\//.test(url)) return false;
+        return true; 
     }
 
-    // B. news.com.au 판별 로직
+    // B. news.com.au
     if (url.includes('news.com.au')) {
-        // 사용자 요청: 다 채워져 있어서 구분이 어려움 -> '발행일'과 '타입'으로 구분
-        
-        // 1. og:type이 'article'이 아니면(website 등) 버림
-        if (metaInfo.og_type && metaInfo.og_type !== 'article') {
-            console.log(`[NewsNode] Filtered: og:type is '${metaInfo.og_type}'`);
-            return false;
-        }
-
-        // 2. 발행일(published_time)이 없으면 버림 (메인 페이지는 발행일이 없음)
-        if (!metaInfo.published_time) {
-            console.log("[NewsNode] Filtered: No article:published_time found");
-            return false;
-        }
-
-        // 3. URL 패턴 보조 확인 (/story/ 포함 여부)
-        if (!url.includes('/story/') && !url.includes('/news-story/')) {
-             return false;
-        }
+        if (metaInfo.og_type && metaInfo.og_type !== 'article') return false;
+        if (!metaInfo.published_time) return false;
+        return true;
     }
 
-    // C. 네이버 (이미 manifest에서 걸렀지만 안전장치)
-    if (url.includes('naver.com') && !url.includes('/article/')) {
+    // C. 네이버 & 다음 (국내 포털)
+    if (url.includes('naver.com') || url.includes('daum.net')) {
+        // 네이버/다음은 뉴스 URL 패턴이 확실하므로 패턴으로 거름
+        if (url.includes('/article/') || url.includes('/v/')) return true;
         return false;
     }
 
-    return true;
+    // ============================================================
+    // 2. [추가] 그 외 모든 사이트 (범용 필터)
+    // ============================================================
+    
+    // 유튜브, 구글, 쇼핑몰 등은 여기서 걸러짐
+    if (url.includes('youtube.com') || url.includes('google.com') || url.includes('coupang.com')) {
+        return false;
+    }
+
+    // ★ 핵심: 표준 메타태그(og:type)가 'article'인 경우만 수집
+    // 대부분의 언론사(CNN, BBC, Velog, Medium 등)는 이를 준수함
+    if (metaInfo.og_type === 'article') {
+        // 내용이 너무 부실하면(제목 5자 미만) 거름
+        if (!metaInfo.title || metaInfo.title.length < 5) return false;
+        return true;
+    }
+
+    // 위 조건에 안 맞으면 기사가 아니라고 판단
+    return false;
 }
 
 // 3. 이벤트 리스너

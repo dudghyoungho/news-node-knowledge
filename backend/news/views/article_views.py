@@ -7,19 +7,22 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-# 상위 폴더 모듈 임포트
-from ..models import Article
+# 모델 및 로직 임포트
+from ..models import Article, UserActionLog
+from ..recommendation import update_user_vector
 from ..crawler import extract_article 
 from ..ai_service import summarize_stream, get_embedding, classify_news
 
 logger = logging.getLogger(__name__)
 
+# =========================================================
+# 1. 요약 스트리밍 View
+# =========================================================
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def summarize(request):
     """
     URL을 받아 기사를 크롤링하고, 국적(Region)에 맞춰 요약을 스트리밍합니다.
-    (기존 로직 유지)
     """
     url = request.data.get('url')
     region = request.data.get('region', 'KR') 
@@ -27,6 +30,7 @@ def summarize(request):
     if not url:
         return Response({'error': 'URL이 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # 이미 저장된 기사인지 확인
     if Article.objects.filter(user=request.user, url=url, status=Article.Status.SAVED).exists():
         return Response({'message': '이미 서재에 저장된 기사입니다.', 'status': 'ALREADY_SAVED'}, status=status.HTTP_200_OK)
 
@@ -41,7 +45,7 @@ def summarize(request):
         ai_category = classify_news(crawled_data['content'], region=region)
         print(f"[{region}] AI 분류 결과 : {ai_category}")
 
-        # 3. DB 임시 저장
+        # 3. DB 임시 저장 (Pending 상태)
         article, created = Article.objects.update_or_create(
             user=request.user,
             url=url,
@@ -55,7 +59,7 @@ def summarize(request):
             }
         )
 
-        # 4. 스트리밍
+        # 4. 스트리밍 함수 정의
         def stream_and_save():
             full_summary_list = []
             try:
@@ -67,11 +71,12 @@ def summarize(request):
                         full_summary_list.append(str(chunk))
                     yield chunk
                 
+                # 스트리밍 완료 후 1차 저장 (요약문만)
                 final_summary = "".join(full_summary_list)
                 if final_summary:
                     article.summary = final_summary
                     article.save()
-                    print(f"✅ [{region}] DB 저장 완료 (길이: {len(final_summary)})")
+                    print(f"✅ [{region}] DB 요약 저장 완료 (길이: {len(final_summary)})")
                 
             except Exception as e:
                 print(f"🔥 스트리밍 중 에러: {e}")
@@ -84,44 +89,81 @@ def summarize(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# =========================================================
+# 2. 백그라운드 작업 (임베딩 + 로그 + 추천반영)
+# =========================================================
 def run_embedding_task(article_id):
     """
-    [백그라운드 작업]
-    사용자에게 응답을 보낸 뒤, 뒤에서 조용히 임베딩을 생성하고 저장합니다.
+    [백그라운드 스레드]
+    1. 임베딩 생성 (PyTorch/OpenAI)
+    2. UserActionLog 기록 (SAVE)
+    3. UserProfile 벡터 업데이트 (추천 시스템 반영)
     """
     try:
-        # 스레드 안에서는 DB 연결을 새로 잡아야 하므로 article을 ID로 다시 불러옵니다.
+        # DB 연결 (스레드 내부라 새로 가져옴)
         article = Article.objects.get(id=article_id)
+        print(f"🔄 [Background] 작업 시작: {article.title}")
         
-        print(f"🔄 [Background] 임베딩 생성 시작: {article.title}")
-        
-        # 입력 텍스트 구성
-        input_text = f"[{article.category}] {article.title}. {article.summary}"
-        
-        # 임베딩 생성 (PyTorch + OpenAI)
-        vectors = get_embedding(input_text)
-        
-        updated = False
-        if vectors.get('pytorch'):
-            article.embedding_pytorch = vectors['pytorch']
-            updated = True
+        # --- Step A: 임베딩 생성 ---
+        try:
+            input_text = f"[{article.category}] {article.title}. {article.summary}"
+            vectors = get_embedding(input_text)
             
-        if vectors.get('openai'):
-            article.embedding_openai = vectors['openai']
-            updated = True
+            updated = False
+            if vectors.get('pytorch'):
+                article.embedding_pytorch = vectors['pytorch']
+                updated = True
             
-        if updated:
-            article.save()
-            print(f"✅ [Background] 임베딩 저장 완료 (ID: {article.id})")
-        else:
-            print(f"⚠️ [Background] 임베딩 생성 실패 (ID: {article.id})")
+            if vectors.get('openai'):
+                article.embedding_openai = vectors['openai']
+                updated = True
+                
+            if updated:
+                article.save()
+                print(f"✅ [Embedding] 저장 완료")
+            else:
+                print(f"⚠️ [Embedding] 생성 실패 (API 응답 없음)")
+        
+        except Exception as e:
+            print(f"🔥 [Embedding] 에러 발생: {e}")
+
+        # --- Step B: 로그 및 추천 업데이트 ---
+        try:
+            user = article.user
             
+            # 로그 기록
+            UserActionLog.objects.create(
+                user=user,
+                article=article,
+                article_url=article.url,
+                action=UserActionLog.ActionType.SAVE, # SAVE 명시
+                region=article.region,
+                title=article.title,
+                description=article.summary[:200] if article.summary else "",
+                image_url=article.thumbnail_url,
+                category=article.category,
+                dwell_time=999, 
+                is_valid_view=True
+            )
+            print(f"📝 [Log] UserActionLog 저장 완료 (SAVE)")
+
+            # 추천 업데이트
+            if article.embedding_pytorch:
+                update_user_vector(user, article.embedding_pytorch, weight=0.2)
+                print(f"📈 [Recommendation] 유저 취향 업데이트 완료 (Weight: 0.2)")
+
+        except Exception as e:
+            print(f"🔥 [Log/Rec] 에러 발생: {e}")
+
     except Article.DoesNotExist:
         print(f"❌ 기사를 찾을 수 없음 (ID: {article_id})")
     except Exception as e:
-        print(f"🔥 백그라운드 작업 중 에러: {e}")
+        print(f"🔥 백그라운드 작업 치명적 에러: {e}")
 
 
+# =========================================================
+# 3. 저장 확정 View
+# =========================================================
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def save_article(request):
@@ -138,20 +180,17 @@ def save_article(request):
     article = get_object_or_404(Article, user=request.user, url=url)
 
     try:
-        # 1. 텍스트 정보 우선 저장 (매우 빠름)
+        # 1. 텍스트 정보 우선 저장 (빠른 응답)
         article.status = Article.Status.SAVED
         article.region = region
         if summary_text:
             article.summary = summary_text
         article.save()
 
-        # 2. [핵심] 임베딩 작업을 백그라운드 스레드로 던짐 (기다리지 않음!)
-        # embedding_pytorch가 없을 때만 실행
-        if article.embedding_pytorch is None:
-            thread = threading.Thread(target=run_embedding_task, args=(article.id,))
-            thread.start()
+        # 2. 백그라운드 작업 시작 (임베딩, 로그, 추천반영)
+        thread = threading.Thread(target=run_embedding_task, args=(article.id,))
+        thread.start()
 
-        # 3. 사용자에게는 즉시 "성공" 응답 반환 (0.1초 컷)
         return Response({'message': '성공적으로 저장되었습니다.', 'status': 'SAVED'}, status=status.HTTP_200_OK)
 
     except Exception as e:
