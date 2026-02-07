@@ -6,7 +6,7 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 
 from datetime import timedelta # [추가] 시간 계산용
-from django.utils import timezone # [추가] Django 시간대 처리
+from django.utils import timezone # [추가] Django 시간대 처
 
 from ..models import Article, UserActionLog
 from ..recommendation import update_user_vector
