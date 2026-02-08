@@ -1,66 +1,100 @@
 // extension_src/background.js
 
-// [중요] config.js를 불러와서 현재 환경(CONFIG.ENV)을 확인합니다.
+// 1. 설정 파일 로드 (환경 변수 등)
 try {
     importScripts('config.js');
 } catch (e) {
-    console.error("config.js 로드 실패:", e);
+    console.error("[NewsNode] config.js 로드 실패:", e);
 }
 
-// 1. 설치 또는 업데이트 시 실행되는 이벤트
-chrome.runtime.onInstalled.addListener((details) => {
-    if (details.reason === "install") {
-        console.log(`[NewsNode] 설치 완료! (${CONFIG.ENV} 모드)`);
-    } else if (details.reason === "update") {
-        console.log(`[NewsNode] 업데이트 완료! (현재 버전: ${chrome.runtime.getManifest().version})`);
+// 2. 뉴스 사이트 도메인 화이트리스트 (감지 대상)
+// RSS 피드 및 주요 뉴스 사이트를 모두 포함합니다.
+const NEWS_DOMAINS = [
+    // [Global & US]
+    "cnn.com", 
+    "bbc.com", 
+    "nytimes.com",
+    "theguardian.com",
+    "abcnews.go.com", // 미국 ABC
+
+    // [Australia]
+    "news.com.au", 
+    "abc.net.au",     // 호주 ABC
+    "businessnews.com.au",
+    "theconversation.com",
+    "sbs.com.au",
+
+    // [Korea - Portal]
+    "news.naver.com", 
+    "v.daum.net", 
+
+    // [Korea - RSS Feeds]
+    "mk.co.kr",         // 매일경제
+    "etnews.com",       // 전자신문
+    "nocutnews.co.kr",  // 노컷뉴스
+    "sbs.co.kr",        // SBS (한국)
+    "donga.com",        // 동아일보 (스포츠동아 포함)
+
+    // [Tech & Blogs]
+    "medium.com", 
+    "velog.io"
+];
+
+// 3. 탭 업데이트 감지 (Lazy Injection & Duplicate Check)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    // 페이지 로딩이 완료되었고 URL이 존재할 때만 실행
+    if (changeInfo.status === 'complete' && tab.url) {
+        
+        // 현재 URL이 화이트리스트에 포함되는지 확인
+        const isNewsSite = NEWS_DOMAINS.some(domain => tab.url.includes(domain));
+        
+        if (isNewsSite) {
+            // console.log(`[NewsNode] Target detected: ${tab.url}`);
+
+            // [핵심] 스크립트 중복 주입 방지를 위한 사전 체크 (PING)
+            // 탭에 메시지를 보내서 "이미 실행 중이니?" 물어봅니다.
+            chrome.tabs.sendMessage(tabId, { type: "PING" })
+                .then(() => {
+                    // 응답이 오면 이미 content_script가 돌고 있다는 뜻 -> 주입 안 함
+                    // console.log("[NewsNode] Script already active on this tab.");
+                })
+                .catch(() => {
+                    // 응답이 없으면(에러 나면) 스크립트가 없다는 뜻 -> 주입 실행!
+                    console.log(`[NewsNode] Injecting script into: ${tab.url}`);
+                    
+                    chrome.scripting.executeScript({
+                        target: { tabId: tabId },
+                        // config.js를 먼저 넣어야 content_script에서 CONFIG 변수를 쓸 수 있음
+                        files: ['config.js', 'content_script.js'] 
+                    }).catch(err => console.log("[NewsNode] Script injection failed:", err));
+                });
+        }
     }
 });
 
-// 2. 메시지 리스너 (핵심: Content Script의 심부름을 수행)
+// 4. 로그 전송 요청 처리 (Content Script -> Background -> Server)
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    
-    // ★ [추가됨] Content Script가 "로그 보내줘(SEND_LOG)"라고 요청했을 때
     if (request.type === "SEND_LOG") {
         const { apiUrl, logData, token } = request.payload;
 
-        // Background Script는 CORS나 Private Network 제한 없이 localhost에 접근 가능합니다.
+        // keepalive: true 옵션으로 탭이 닫혀도 전송을 시도함 (Navigator.sendBeacon 대용)
         fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // 백엔드 설정에 맞춰 'Token' 또는 'Bearer' 사용 (현재 Token 사용 중)
-                'Authorization': `Token ${token}` 
+                'Authorization': `Token ${token}`
             },
-            body: JSON.stringify(logData)
+            body: JSON.stringify(logData),
+            keepalive: true 
         })
         .then(response => {
-            if (response.ok) {
-                if (CONFIG.ENV === 'development') console.log(`[Background] Log sent successfully: ${logData.article_url}`);
-            } else {
-                console.error(`[Background] Server error (${response.status}):`, response.statusText);
+            if (!response.ok) {
+                console.error(`[NewsNode] Log upload failed: ${response.status}`);
             }
         })
-        .catch(err => {
-            console.error("[Background] Network error:", err);
-        });
+        .catch(err => console.error("[NewsNode] Network error:", err));
 
-        // 비동기 작업이므로 true를 반환하여 채널을 유지하는 것이 관례지만,
-        // fire-and-forget 방식이라 필수는 아님. (안전하게 return true)
+        // 비동기 응답 처리를 위해 true 리턴
         return true; 
-    }
-
-    return true; 
-});
-
-// 3. 스토리지 변경 감지 (디버깅용)
-chrome.storage.onChanged.addListener((changes, namespace) => {
-    // api_token으로 변경된 것 반영
-    if (namespace === 'local' && changes.api_token) {
-        const newToken = changes.api_token.newValue;
-        if (newToken) {
-            console.log("[Auth] 토큰이 저장/갱신되었습니다. (로그 수집 준비 완료)");
-        } else {
-            console.log("[Auth] 토큰이 삭제되었습니다. (로그아웃)");
-        }
     }
 });
