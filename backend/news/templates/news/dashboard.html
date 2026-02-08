@@ -3,42 +3,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Knowledge Dashboard</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <link rel="stylesheet" href="{% static 'news/css/dashboard.css' %}">
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'news/favicon.ico' %}">
 </head>
 <body class="dark-theme">
 
-    <button id="mobile-menu-btn" class="mobile-menu-btn">
-        ☰
-    </button>
-    <div id="mobile-overlay" class="mobile-overlay"></div>
+    {% include 'news/components/mobile_menu.html' %}
 
-    <div class="sidebar">
-        <div class="menu-group">
-            <div class="logo">News-Node-Knowledge</div>
-            
-            <div class="menu-item active" data-target="view-knowledge">
-                My Knowledge
-            </div>
-            <div class="menu-item" data-target="view-librarian">
-                My Librarian
-            </div>
-        </div>
-    
-        <div class="sidebar-footer">
-            <div class="footer-info">
-                <p>© 2026 News-Node-Article</p>
-                <p>Love you Cohen</p>
-            </div>
-            <div class="footer-links">
-                <a href="mailto:younghoshin2001@gmail.com">Contact</a>
-                <span class="dot">·</span>
-                <a href="/api/news/privacy/" target="_blank">Privacy</a>
-            </div>
-        </div>
-    </div>
+    {% include 'news/components/sidebar.html' %}
 
     <div class="main-content">
         
@@ -46,53 +23,14 @@
             <iframe src="/api/news/graph/" id="graph-frame" allowtransparency="true"></iframe>
         </div>
 
-        <div id="view-knowledge" class="view-overlay">
-            
-            <div class="overlay-header">
-                <div class="header-title">
-                    My Knowledge Universe
-                    <span id="user-persona" class="persona-badge">Loading...</span>
-                </div>
-            </div>
+        {% include 'news/views/knowledge.html' %}
 
-            <div class="right-floating-panel">
-                
-                <div class="glass-card">
-                    <h3>⚡ Recent Nodes</h3>
-                    <div id="recent-news-list" class="mini-list">
-                        <p class="loading-text small">Loading nodes...</p>
-                    </div>
-                </div>
-
-                <div class="glass-card">
-                    <h3>📅 Weekly Rhythm</h3>
-                    <div class="chart-box">
-                        <canvas id="weeklyChart"></canvas>
-                    </div>
-                </div>
-                
-                <div class="glass-card">
-                    <h3>🧠 Interest Map</h3>
-                    <div class="chart-box">
-                        <canvas id="categoryChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="view-librarian" class="view-section" style="display: none;">
-            <div class="header">AI Librarian</div>
-            <div class="librarian-section">
-                <h3>Knowledge Time Capsule</h3>
-                <div id="review-card" class="ai-card"><p>Loading...</p></div>
-            </div>
-            <div class="librarian-section">
-                <h3>Knowledge Discovery</h3>
-                <div id="external-list" class="ai-list"><p>Loading...</p></div>
-            </div>
-        </div>
+        {% include 'news/views/librarian.html' %}
 
     </div> 
+
+    <script src="{% static 'news/js/modules/dashboard_ui.js' %}"></script>
+    <script src="{% static 'news/js/modules/dashboard_data.js' %}"></script>
 
     <script src="{% static 'news/js/dashboard.js' %}"></script>
 </body>

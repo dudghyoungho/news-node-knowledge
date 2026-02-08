@@ -10,6 +10,8 @@ from django.utils import timezone
 from django.conf import settings
 from .models import Article
 from .ai_service import get_completion  # ai_service에서 가져오기
+from pgvector.django import CosineDistance
+
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -327,3 +329,81 @@ def recommend_external_articles(user, region='KR'):
         "keyword": ", ".join(keywords),
         "articles": final_articles
     }
+
+# ---------------------------------------------------------
+# 6. [NEW] 벡터 기반 추천 (recommend_by_vector)
+# ---------------------------------------------------------
+def recommend_by_vector(user, region=None, limit=3):
+    """
+    [Diversity Upgrade] 
+    초기 유저의 '편향(Overfitting)'을 막기 위해 
+    Top-K 후보군(Pool)을 뽑은 뒤 랜덤으로 선택하는 방식 적용
+    """
+    
+    # 1. 유저 프로필 및 벡터 존재 확인
+    if not hasattr(user, 'profile') or user.profile.embedding_user is None:
+        return []
+
+    user_vector = user.profile.embedding_user
+
+    try:
+        # 2. 쿼리셋 구성 (벡터 거리 계산)
+        candidates = Article.objects.annotate(
+            distance=CosineDistance('embedding_pytorch', user_vector)
+        ).exclude(
+            embedding_pytorch__isnull=True
+        )
+
+        # [필터] Region 적용
+        if region:
+            candidates = candidates.filter(region=region)
+
+        # ---------------------------------------------------------
+        # 3. [핵심] 다양성 확보 로직 (Candidate Pool Sampling)
+        # ---------------------------------------------------------
+        
+        # (A) 너무 가까운 기사(본인 등) 제외 (거리 0.001 미만)
+        # 같은 기사가 중복 추천되는 것을 방지
+        candidates = candidates.filter(distance__gt=0.001)
+
+        # (B) 후보군 크기 설정 (Pool Size)
+        # 데이터가 적을 땐 30개, 많을 땐 15개 정도를 후보로 둠
+        pool_size = 30 
+        
+        # (C) 상위 N개 후보 가져오기 (이 안에는 '가장 가까운 것' + '적당히 가까운 것'이 섞임)
+        top_candidates = list(candidates.order_by('distance')[:pool_size])
+
+        # (D) 후보군이 요청한 개수보다 적으면 그냥 다 줌
+        if len(top_candidates) <= limit:
+            final_selection = top_candidates
+        else:
+            # (E) ★ 랜덤 샘플링 (Shuffle) ★
+            # 상위 30개 중에서 무작위로 3개를 뽑음 -> 편향 방지 & 매번 다른 결과
+            final_selection = random.sample(top_candidates, limit)
+
+            # (선택적) 만약 더 정교하게 하려면, 여기서 카테고리가 겹치지 않게 뽑을 수도 있음
+            # 하지만 지금은 Random Sample만으로도 충분한 다양성이 확보됨.
+
+        # 4. 결과 포맷팅
+        results = []
+        for article in final_selection:
+            # 거리(0~2)를 유사도(%)로 변환
+            similarity_score = max(0, 1 - article.distance) 
+
+            results.append({
+                "id": article.id,
+                "title": article.title,
+                "summary": article.summary[:100] + "..." if article.summary else "",
+                "region": article.region,
+                "similarity": round(similarity_score * 100, 1), 
+                "source": "Vector Rec" 
+            })
+        
+        # (F) 최종 결과도 유사도 순으로 다시 정렬해서 보여줌 (사용자 경험 위해)
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+            
+        return results
+
+    except Exception as e:
+        logger.error(f"Vector Recommendation Error: {e}")
+        return []
