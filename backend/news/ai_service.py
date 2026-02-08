@@ -1,5 +1,6 @@
 from django.conf import settings
 import os
+import json
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
@@ -27,14 +28,17 @@ def get_local_model():
 
 def classify_news(text, region='KR'):
     """
-    뉴스 본문을 읽고 세분화된 카테고리로 분류합니다.
-    region이 'AU'일 경우 영어 카테고리를 반환합니다.
+    [Upgrade] 뉴스 본문을 읽고
+    1. 주제 카테고리 (Category: Politics, Tech...)
+    2. 기사 성격 (Type: FACT, INSIGHT, OPINION...)
+    
+    두 가지를 동시에 분류하여 JSON으로 반환합니다.
     """
     try:
-        short_text = text[:1000] # 앞부분만 읽어도 분류 충분
+        short_text = text[:1500] # 분석 정확도를 위해 텍스트 길이 약간 늘림
 
         if region == 'AU':
-            # [AU] 호주 모드 - 영어 카테고리
+            # [AU] 호주 모드 (영어)
             categories = [
                 "Politics/Election", "Policy/Admin", 
                 "Economy/Finance", "Real Estate", "Stock/Investment", "Business",
@@ -45,15 +49,20 @@ def classify_news(text, region='KR'):
                 "Sports", "Football", "Baseball", "Golf",
                 "Entertainment", "Movie/Music", "Culture/Art"
             ]
+            types = ["FACT", "INSIGHT", "OPINION", "TUTORIAL"]
+            
             system_instruction = (
-                f"You are a news classification expert. Read the news article below and select "
-                f"**only one** category from the list that best matches the content.\n"
-                f"List: [{', '.join(categories)}]\n"
-                f"Warning: Do not use 'Other'. You must choose one from the list."
-                f"Output only the category noun."
+                f"You are a news classification expert. Analyze the article below and return a JSON object.\n"
+                f"1. category: Choose ONE from [{', '.join(categories)}].\n"
+                f"2. type: Choose ONE from [{', '.join(types)}].\n"
+                f"   - FACT: Simple news report, breaking news.\n"
+                f"   - INSIGHT: In-depth analysis, future trends, why it happened.\n"
+                f"   - OPINION: Editorials, personal views, columns.\n"
+                f"   - TUTORIAL: How-to guides, tips.\n"
+                f"Output Format: JSON only. Example: {{\"category\": \"IT/Tech\", \"type\": \"FACT\"}}"
             )
         else:
-            # [KR] 한국 모드 - 한글 카테고리
+            # [KR] 한국 모드 (한글)
             categories = [
                 "정치/선거", "행정/정책", 
                 "경제/금융", "부동산", "주식/투자", "기업/비즈니스",
@@ -64,33 +73,46 @@ def classify_news(text, region='KR'):
                 "스포츠", "축구", "야구", "골프",
                 "연예/방송", "영화/음악", "문화/예술"
             ]
+            types = ["FACT", "INSIGHT", "OPINION", "TUTORIAL"]
+
             system_instruction = (
-                f"당신은 뉴스 분류 전문가입니다. 다음 뉴스 기사를 읽고 아래 카테고리 목록 중 "
-                f"내용과 가장 연관성이 높은 **단 하나**를 선택해 반환하세요.\n"
-                f"목록: [{', '.join(categories)}]\n"
-                f"주의: '기타'라는 말은 쓰지 마세요. 무조건 위 목록 중 하나를 골라야 합니다."
-                f"오직 카테고리 명사만 출력하세요."
+                f"당신은 뉴스 분류 전문가입니다. 기사를 분석하여 JSON 객체를 반환하세요.\n"
+                f"1. category: 다음 목록 중 하나 선택 [{', '.join(categories)}].\n"
+                f"2. type: 다음 목록 중 하나 선택 [{', '.join(types)}].\n"
+                f"   - FACT: 단순 사실 보도, 속보.\n"
+                f"   - INSIGHT: 심층 분석, 원인 및 전망, 해설.\n"
+                f"   - OPINION: 사설, 칼럼, 주관적 견해.\n"
+                f"   - TUTORIAL: 가이드, 팁, 방법론.\n"
+                f"출력 형식: 오직 JSON만. 예시: {{\"category\": \"IT/테크\", \"type\": \"FACT\"}}"
             )
 
+        # JSON 응답을 강제하기 위해 response_format 사용 (GPT-4o/3.5-turbo 지원)
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": short_text}
             ],
-            temperature=0.1, # 창의성 억제 (정확한 분류)
+            temperature=0.1,
+            response_format={"type": "json_object"} # ★ JSON 강제 모드
         )
         
-        category = completion.choices[0].message.content.strip()
+        # 결과 파싱
+        result_json = json.loads(completion.choices[0].message.content)
         
-        # 혹시라도 AI가 이상한 말을 붙이면 정제 (리스트에 있는지 확인)
-        # (영어/한글 모두 처리하기 위해 로직 단순화: 리스트에 없으면 그냥 둠)
-        return category
+        # 안전장치 (Key가 없을 경우 대비)
+        category = result_json.get("category", "General" if region == 'AU' else "일반")
+        article_type = result_json.get("type", "FACT")
+
+        return {"category": category, "type": article_type}
 
     except Exception as e:
-        print(f"카테고리 분류 실패: {e}")
-        return "General" if region == 'AU' else "일반"
-
+        print(f"카테고리/타입 분류 실패: {e}")
+        # 실패 시 기본값 반환
+        return {
+            "category": "General" if region == 'AU' else "일반",
+            "type": "FACT"
+        }
 
 def summarize_stream(text, region='KR'):
     """

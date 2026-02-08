@@ -1,5 +1,5 @@
 // dashboard_data.js - API Fetching & Rendering
-const DashboardData = {
+window.DashboardData = {
     region: 'KR',
     textPack: {},
 
@@ -57,20 +57,23 @@ const DashboardData = {
             .catch(err => console.warn("Recent News API not ready yet."));
     },
 
-    // 3. Librarian 데이터 (Time Capsule + Recommendations)
+    // 3. Librarian 데이터 로드 (Time Capsule + Recommendations)
     loadLibrarianData: function() {
-        // (1) Time Capsule
+        // (1) Time Capsule (과거의 기억)
         fetch(`/api/news/rag/review/?region=${this.region}`)
             .then(res => res.json())
             .then(data => {
                 const container = document.getElementById('review-card');
+                if(!container) return;
+                
                 if (data.message) {
                     container.innerHTML = `<p style="text-align:center; color:#636e72; padding: 20px;">${data.message}</p>`;
                     return;
                 }
+                // Time Capsule은 디자인 유지
                 container.innerHTML = `
                     <div style="font-size:12px; color:#55efc4; margin-bottom:5px; font-weight:bold;">
-                        ${this.textPack.reviewTitle} ${data.date}
+                        ${this.textPack.reviewTitle} ${data.date || ""}
                     </div>
                     <div style="font-size:16px; font-weight:bold; color:#fff; margin-bottom:15px; line-height: 1.4;">
                         ${data.title}
@@ -78,17 +81,14 @@ const DashboardData = {
                     <div class="ai-comment" style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; color:#dfe6e9; font-style:italic; border-left: 3px solid #55efc4;">
                         "${data.comment.replace(/\n/g, '<br>')}"
                     </div>
-                    <button class="btn-link" style="margin-top:15px; width:100%; text-align:center; background:none; border:none; color:#74b9ff; cursor:pointer; font-weight:bold;" onclick="window.open('${data.url}', '_blank')">
+                    <button class="btn-link" style="margin-top:15px; width:100%; text-align:center; background:none; border:none; color:#74b9ff; cursor:pointer; font-weight:bold;" onclick="window.open('${data.article ? data.article.url : data.url}', '_blank')">
                         ${this.textPack.readButton} →
                     </button>
                 `;
             })
-            .catch(err => {
-                const container = document.getElementById('review-card');
-                if(container) container.innerHTML = `<p style="color:#636e72; text-align:center;">AI Librarian is sleeping...</p>`;
-            });
+            .catch(err => console.log("Librarian sleeping..."));
 
-        // (2) External & Vector Recommendations
+        // (2) Recommendations (External + Vector) -> [수정] 통합 렌더링
         fetch(`/api/news/rag/external/?region=${this.region}`)
             .then(res => res.json())
             .then(data => {
@@ -102,7 +102,115 @@ const DashboardData = {
             });
     },
 
-    // --- Helper Render Functions ---
+// ============================================================
+    // [NEW] ★ 핵심: 공통 카드 HTML 생성 함수 (Unified Design) ★
+    // ============================================================
+    createCardHTML: function(item, type) {
+        // 1. 데이터 안전하게 추출 (백엔드 키 통일됨)
+        const title = (item.title || "No Title").replace(/<[^>]*>?/gm, '');
+        const summary = item.summary || "No description.";
+        const link = item.url || "#";
+        const thumbnail = item.thumbnail || ""; 
+        const date = item.date || "";
+        const source = item.source || "Web";
+
+        // [수정] ★ 여기가 누락되어 있었습니다! 데이터를 변수로 꺼내야 합니다. ★
+        const reasonTag = item.reason_tag || "";
+        const reasonDesc = item.reason_desc || "";
+
+        // 2. 타입별 배지 & 메타 정보 설정
+        let badgeClass = "";
+        let metaRight = ""; 
+
+        if (type === 'vector') {
+            badgeClass = "badge-vector";
+            if (item.similarity) {
+                metaRight = `<span class="lib-meta-text" style="color:#a29bfe;">${item.similarity}% Match</span>`;
+            } else {
+                 metaRight = `<span class="lib-meta-text">${date}</span>`;
+            }
+        } else {
+            badgeClass = "badge-search";
+            metaRight = `<span class="lib-meta-text">${date}</span>`;
+        }
+
+        // [수정] 이제 reasonTag 변수가 정의되었으므로 정상 작동합니다.
+        let reasonHtml = "";
+        if (type === 'vector' && reasonTag) {
+            // 사유를 보여주는 작은 헤더
+            reasonHtml = `
+                <div style="font-size:11px; color:#a29bfe; margin-bottom:4px; font-weight:600; display:flex; align-items:center; gap:6px;">
+                    <span style="background:rgba(162,155,254,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(162,155,254,0.2);">${reasonTag}</span>
+                    <span style="color:#b2bec3; font-weight:400; font-size:11px;">${reasonDesc}</span>
+                </div>
+            `;
+        }
+
+        // 3. 이미지 태그 생성
+        const imgHtml = thumbnail 
+            ? `<img src="${thumbnail}" class="lib-card-thumb" onerror="this.parentNode.innerHTML='<div class=\'lib-card-no-img\'>📰</div>'">`
+            : `<div class="lib-card-no-img">📰</div>`;
+
+        // 4. 최종 HTML 조립
+        return `
+            <div class="lib-card" onclick="window.open('${link}', '_blank')">
+                <div class="lib-card-thumb-box">
+                    ${imgHtml}
+                </div>
+                <div class="lib-card-body">
+                    ${reasonHtml}
+                    
+                    <div>
+                        <div class="lib-card-meta">
+                            <span class="lib-badge ${badgeClass}">${source}</span>
+                            ${metaRight}
+                        </div>
+                        <div class="lib-card-title">${title}</div>
+                    </div>
+                    <div class="lib-card-desc">${summary}</div>
+                </div>
+            </div>
+        `;
+    },
+    
+    // [수정] 벡터 추천 렌더링 (createCardHTML 사용)
+    renderVectorRecs: function(items) {
+        const container = document.getElementById('vector-list');
+        if (!container) return;
+
+        if (items.length === 0) {
+            container.innerHTML = `<div style="padding:15px; color:#636e72; font-size:13px; text-align:center;">Read more articles to get personalized recommendations.</div>`;
+            return;
+        }
+        
+        container.innerHTML = items.map(item => this.createCardHTML(item, 'vector')).join('');
+    },
+
+    // [수정] 검색 추천 렌더링 (createCardHTML 사용)
+    renderSearchRecs: function(data) {
+        const container = document.getElementById('external-list');
+        const keywordContainer = document.getElementById('discovery-keywords');
+        if (!container) return;
+
+        const items = data.articles || [];
+        
+        // 키워드 태그 렌더링
+        if (keywordContainer) {
+            const keywords = (data.keywords || data.keyword || "General").split(',');
+            let kwHtml = '';
+            keywords.forEach(k => { kwHtml += `<span class="keyword-tag">#${k.trim()}</span>`; });
+            keywordContainer.innerHTML = kwHtml;
+        }
+
+        if (items.length === 0) {
+            container.innerHTML = `<div style='padding:20px; color:#636e72; text-align:center;'>${this.textPack.noExternal}</div>`;
+            return;
+        }
+
+        container.innerHTML = items.map(item => this.createCardHTML(item, 'search')).join('');
+    },
+
+    // --- 차트 렌더링 함수들 (기존 유지) ---
     renderWeeklyChart: function(data) {
         if (!data) return;
         const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
@@ -149,70 +257,5 @@ const DashboardData = {
                 cutout: '75%'
             }
         });
-    },
-
-    renderVectorRecs: function(items) {
-        const container = document.getElementById('vector-list');
-        if (items.length === 0) {
-            container.innerHTML = `<div style="padding:15px; color:#636e72; font-size:13px; text-align:center;">Read more articles to get personalized vector recommendations.</div>`;
-            return;
-        }
-        let html = '';
-        items.forEach(item => {
-            html += `
-                <div class="rec-item">
-                    <div style="flex: 1; margin-right: 15px;">
-                        <div style="font-size:14px; font-weight:bold; color:#fff; margin-bottom:4px; line-height:1.4;">${item.title}</div>
-                        <div class="meta-info">
-                            <span style="color:#a29bfe;">● ${item.region}</span> 
-                            <span style="margin-left:8px;">${item.summary ? item.summary.substring(0, 40)+'...' : ''}</span>
-                        </div>
-                    </div>
-                    <div class="similarity-score">
-                        ${item.similarity}%
-                        <div style="font-size:9px; font-weight:normal; margin-top:2px; opacity:0.8;">${this.textPack.similarity}</div>
-                    </div>
-                </div>`;
-        });
-        container.innerHTML = html;
-    },
-
-    renderSearchRecs: function(data) {
-        const container = document.getElementById('external-list');
-        const keywordContainer = document.getElementById('discovery-keywords');
-        const items = data.articles || [];
-        const keywords = (data.keywords || data.keyword || "General").split(',');
-
-        let kwHtml = '';
-        keywords.forEach(k => { kwHtml += `<span class="keyword-tag">#${k.trim()}</span>`; });
-        keywordContainer.innerHTML = kwHtml;
-
-        if (items.length === 0) {
-            container.innerHTML = `<div style='padding:20px; color:#636e72; text-align:center;'>${this.textPack.noExternal}</div>`;
-            return;
-        }
-
-        let html = '';
-        items.forEach(item => {
-            const link = item.url || item.link || '#';
-            const title = item.title.replace(/<[^>]*>?/gm, ''); 
-            const summary = item.summary || item.snippet || "";
-            const source = item.source || this.textPack.source;
-            let dateStr = "";
-            try { dateStr = (item.date || item.pubDate).substring(0, 10); } catch(e) {}
-
-            html += `
-                <div class="rec-item" onclick="window.open('${link}', '_blank')">
-                    <div style="flex: 1;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                            <span style="font-size:10px; background:rgba(85, 239, 196, 0.15); color:#55efc4; padding:2px 6px; border-radius:4px; font-weight:bold;">${source}</span>
-                            <span style="font-size:10px; color:#636e72;">${dateStr}</span>
-                        </div>
-                        <div style="font-weight:bold; margin-bottom: 6px; color:#dfe6e9; font-size:14px; line-height:1.4;">${title}</div>
-                        ${summary ? `<div style="font-size:12px; color:#b2bec3; line-height:1.4; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;">${summary}</div>` : ''}
-                    </div>
-                </div>`;
-        });
-        container.innerHTML = html;
     }
 };

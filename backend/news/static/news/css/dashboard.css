@@ -361,3 +361,139 @@ a:hover { text-decoration: underline; color: #fff; }
     .glass-card { min-width: 250px; height: 100%; margin: 0; }
     .chart-box { height: 120px; }
 }
+/* =========================================
+   11. Unified Card Design (Lib-Card) - [Fixed]
+   ========================================= */
+
+/* 카드 전체 컨테이너 */
+.lib-card {
+    display: flex; /* 가로 배치 (좌:이미지, 우:텍스트) */
+    flex-direction: row; /* 명시적 행 정렬 */
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 15px;
+    
+    /* [핵심] 기사 분리를 위한 마진 설정 */
+    margin-bottom: 15px !important; 
+    width: 100%; /* 부모 영역 꽉 채우기 */
+    box-sizing: border-box; /* 패딩 포함 크기 계산 */
+    
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.lib-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+    border-color: rgba(116, 185, 255, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* 왼쪽: 썸네일 이미지 박스 (크기 강제 고정) */
+.lib-card-thumb-box {
+    width: 90px !important;  /* 강제 고정 */
+    height: 90px !important; /* 강제 고정 */
+    flex-shrink: 0; /* 찌그러짐 방지 */
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #2d3436;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 실제 이미지 태그 */
+.lib-card-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 비율 유지하며 꽉 채우기 */
+    display: block;
+}
+
+/* 이미지 없을 때 아이콘 */
+.lib-card-no-img {
+    font-size: 24px;
+    color: #636e72;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+/* 오른쪽: 텍스트 콘텐츠 영역 */
+.lib-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0; /* 텍스트 말줄임 필수 설정 */
+    overflow: hidden; /* 내부 넘침 방지 */
+}
+
+/* 상단 메타 정보 */
+.lib-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+/* 배지 스타일 */
+.lib-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    display: inline-block;
+}
+.badge-vector { background: rgba(162, 155, 254, 0.15); color: #a29bfe; border: 1px solid rgba(162, 155, 254, 0.3); }
+.badge-search { background: rgba(85, 239, 196, 0.15); color: #55efc4; border: 1px solid rgba(85, 239, 196, 0.3); }
+
+.lib-meta-text {
+    font-size: 10px;
+    color: #636e72;
+    font-weight: 500;
+}
+
+/* 제목 */
+.lib-card-title {
+    color: #dfe6e9;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.3;
+    
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 요약문 */
+.lib-card-desc {
+    color: #b2bec3;
+    font-size: 12px;
+    line-height: 1.4;
+    
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    opacity: 0.8;
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+    .lib-card { padding: 12px; gap: 12px; }
+    .lib-card-thumb-box { width: 70px !important; height: 70px !important; }
+    .lib-card-title { font-size: 14px; }
+    .lib-card-desc { display: none; } /* 공간 부족 시 요약 숨김 */
+}

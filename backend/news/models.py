@@ -47,6 +47,13 @@ class Article(models.Model):
         RSS_CRAWLED = 'RSS', 'RSS 자동 수집'
 
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.USER_SAVED)
+    
+    class ArticleType(models.TextChoices):
+        FACT = 'FACT', '단순 보도 (Fact)'          # 속보, 단순 사실 전달
+        INSIGHT = 'INSIGHT', '심층 분석 (Insight)' # 원인 분석, 전망, 해설
+        OPINION = 'OPINION', '사설/칼럼 (Opinion)' # 주관적 견해, 주장
+        TUTORIAL = 'TUTORIAL', '가이드/팁 (How-to)' # 기술 튜토리얼, 방법론
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='articles')
     region = models.CharField(max_length=10, choices=Region.choices, default=Region.KR)
 
@@ -55,6 +62,13 @@ class Article(models.Model):
     content = models.TextField(blank=True, null=True)
     summary = models.TextField(blank=True, null=True)
     category = models.CharField(max_length=100, blank=True, null=True)
+    
+    article_type = models.CharField(
+        max_length=20, 
+        choices=ArticleType.choices, 
+        default=ArticleType.FACT, # 기본값은 단순 보도
+        help_text="기사의 성격 (Fact vs Insight)"
+    )
     
     # 벡터 데이터
     embedding_openai = VectorField(dimensions=1536, blank=True, null=True)

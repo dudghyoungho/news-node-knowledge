@@ -41,9 +41,17 @@ def summarize(request):
         if not crawled_data or not crawled_data.get('content'):
             return Response({'error': '기사 본문을 가져올 수 없습니다.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. 카테고리 분류
-        ai_category = classify_news(crawled_data['content'], region=region)
-        print(f"[{region}] AI 분류 결과 : {ai_category}")
+        # ---------------------------------------------------------
+        # [수정] 2. 카테고리 및 기사 성격(Type) 분류
+        # ---------------------------------------------------------
+        # classify_news는 이제 {'category': '...', 'type': '...'} 반환
+        ai_result = classify_news(crawled_data['content'], region=region)
+        
+        # 딕셔너리에서 값 추출 (안전하게 get 사용)
+        category = ai_result.get('category', 'General')
+        article_type = ai_result.get('type', 'FACT') # 기본값 FACT
+
+        print(f"[{region}] AI 분류 결과 : Category={category}, Type={article_type}")
 
         # 3. DB 임시 저장 (Pending 상태)
         article, created = Article.objects.update_or_create(
@@ -53,7 +61,11 @@ def summarize(request):
                 'title': crawled_data.get('title', '제목 없음'),
                 'content': crawled_data.get('content', ''),
                 'thumbnail_url': crawled_data.get('thumbnail_url'),
-                'category' : ai_category,
+                
+                # [수정] 분해된 값 저장
+                'category': category,
+                'article_type': article_type, # <--- 새로 추가된 필드 저장!
+                
                 'region': region,
                 'status': Article.Status.PENDING,
             }

@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from ..models import Article
 # region 인자를 받도록 수정된 서비스 함수들 임포트
-from ..rag_service import find_connected_articles, review_past_knowledge, recommend_external_articles, recommend_by_vector
+from ..rag_service import find_connected_articles, review_past_knowledge, recommend_external_articles, recommend_mixed_portfolio
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -54,7 +54,7 @@ def external_recommendation(request):
     search_data = recommend_external_articles(request.user, region=region)
     
     # 2. 신규 벡터 기반 추천 (region 전달)
-    vector_data = recommend_by_vector(request.user, region=region, limit=3)
+    vector_data = recommend_mixed_portfolio(request.user, region=region, limit=3)
     
     # 3. 통합 응답 반환
     return Response({

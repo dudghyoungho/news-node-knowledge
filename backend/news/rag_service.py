@@ -52,14 +52,23 @@ def search_naver(keyword):
         results = []
         for item in items:
             link = item.get("link", "")
-            # 네이버 뉴스 포털 링크 우선 필터링 (요약 품질 위해)
-            if "news.naver.com" not in link:
-                continue
-                
+            
+            # [필터 완화] 네이버 뉴스 포털이 아니더라도 원문 링크가 있으면 허용
+            # 만약 네이버 뉴스만 고집하고 싶다면 아래 주석을 해제하세요.
+            # if "news.naver.com" not in link:
+            #    continue
+            
+            # [방어 코드] None값 처리
+            raw_title = item.get("title") or ""
+            raw_desc = item.get("description") or ""
+            raw_date = item.get("pubDate") or ""
+
             results.append({
-                "title": clean_html(item.get("title", "")),
-                "link": link,
-                "pubDate": item.get("pubDate", ""),
+                "title": clean_html(raw_title),
+                "summary": clean_html(raw_desc),
+                "url": link,                           # [통일] link -> url
+                "thumbnail": "",                       # [통일] 빈 값이라도 필수
+                "date": raw_date[:10] if raw_date else "",
                 "source": "Naver News"
             })
         return results
@@ -69,9 +78,9 @@ def search_naver(keyword):
 
 def search_newsapi(keyword):
     """ 
-    호주/글로벌 뉴스 검색 (NewsAPI) 
-    - [수정 1] 신뢰할 수 있는 언론사(도메인) 필터링 적용
-    - [수정 2] summary 필드 매핑 (내용 표시)
+    호주/글로벌 뉴스 검색 (NewsAPI)
+    - [수정] 누락된 결과 처리 로직 복구
+    - [수정] 키 이름 통일 (url, thumbnail)
     """
     api_key = os.environ.get("NEWSAPI_KEY") 
     if not api_key:
@@ -80,9 +89,6 @@ def search_newsapi(keyword):
 
     url = "https://newsapi.org/v2/everything"
     
-    # ★ 신뢰할 수 있는 언론사 도메인 리스트 (호주 중심 + 글로벌 메이저)
-    # abc.net.au (호주 공영), smh.com.au (시드니 모닝 헤럴드), theage.com.au (디 에이지)
-    # bbc.com, reuters.com, bloomberg.com, cnn.com, theguardian.com
     trusted_domains = (
         "abc.net.au,smh.com.au,theage.com.au,"
         "bbc.com,reuters.com,bloomberg.com,cnn.com,theguardian.com,"
@@ -94,7 +100,7 @@ def search_newsapi(keyword):
         "language": "en",
         "sortBy": "relevancy",
         "pageSize": 5,
-        "domains": trusted_domains, # ★ 여기서 언론사를 강제합니다.
+        "domains": trusted_domains,
         "apiKey": api_key
     }
     
@@ -102,7 +108,6 @@ def search_newsapi(keyword):
         response = requests.get(url, params=params)
         data = response.json()
         
-        # 에러 체크
         if data.get("status") != "ok":
             logger.error(f"NewsAPI Error: {data.get('message')}")
             return []
@@ -111,20 +116,19 @@ def search_newsapi(keyword):
         
         results = []
         for item in articles:
-            # 내용이 없으면 건너뛰기
-            description = item.get("description")
-            if not description:
+            # 필수 필드 체크
+            if not item.get("url") or not item.get("title"):
                 continue
 
+            raw_date = item.get("publishedAt") or ""
+            
             results.append({
-                "title": item.get("title"),
-                "link": item.get("url"),
-                "pubDate": item.get("publishedAt", "")[:10],
-                "source": item.get("source", {}).get("name", "NewsAPI"),
-                
-                # ★ [핵심 수정] 프론트엔드가 'summary'를 찾으므로 여기에 할당
-                "summary": description, 
-                "snippet": description  # 혹시 몰라 snippet에도 넣어둠
+                "title": item.get("title") or "No Title",
+                "summary": item.get("description") or "",
+                "url": item.get("url"),                     # [통일] link -> url
+                "thumbnail": item.get("urlToImage") or "",  # [통일] 썸네일 매핑
+                "date": raw_date[:10] if raw_date else "",
+                "source": item.get("source", {}).get("name") or "NewsAPI"
             })
         return results
     except Exception as e:
@@ -268,8 +272,8 @@ def review_past_knowledge(user, region='KR'):
 def recommend_external_articles(user, region='KR'):
     """
     [Upgrade] Region에 따라:
-    1. 키워드 추출 언어 변경 (영어/한글)
-    2. 검색 엔진 변경 (NewsAPI/Naver)
+    1. 키워드 추출 언어 변경
+    2. 검색 엔진 변경 및 URL 중복 제거 로직 수정
     """
     recent_articles = Article.objects.filter(
         user=user, 
@@ -297,6 +301,7 @@ def recommend_external_articles(user, region='KR'):
                 )
             
             response = get_completion(prompt).strip()
+            # 따옴표 제거 및 분리
             keywords = [k.strip().replace('"', '').replace("'", "") for k in response.split(',')]
         except Exception as e:
             logger.error(f"키워드 생성 실패: {e}")
@@ -318,7 +323,9 @@ def recommend_external_articles(user, region='KR'):
             results = search_naver(kw)
             
         for article in results:
-            url = article.get('link')
+            # [핵심 수정] 모든 검색 함수가 'url' 키를 쓰므로 여기서도 'url' 확인
+            url = article.get('url') 
+            
             if url and url not in seen_urls:
                 article['keyword_label'] = kw # 뱃지용
                 final_articles.append(article)
@@ -329,81 +336,170 @@ def recommend_external_articles(user, region='KR'):
         "keyword": ", ".join(keywords),
         "articles": final_articles
     }
+# ---------------------------------------------------------
+# 6. [NEW] 벡터 기반 추천 (recommend_by_vector) - [수정됨]
+# ---------------------------------------------------------
 
-# ---------------------------------------------------------
-# 6. [NEW] 벡터 기반 추천 (recommend_by_vector)
-# ---------------------------------------------------------
-def recommend_by_vector(user, region=None, limit=3):
+
+# backend/news/rag_service.py
+
+def recommend_mixed_portfolio(user, region=None, limit=3):
     """
-    [Diversity Upgrade] 
-    초기 유저의 '편향(Overfitting)'을 막기 위해 
-    Top-K 후보군(Pool)을 뽑은 뒤 랜덤으로 선택하는 방식 적용
+    [Portfolio Recommendation v2]
+    1. Pool Extension: Search up to top 100 to increase chance of finding INSIGHT articles.
+    2. Insight Priority: Boost INSIGHT articles to Slot 1 even if similarity is slightly lower.
+    3. Strict De-duplication: Prevent duplicates across slots.
     """
-    
-    # 1. 유저 프로필 및 벡터 존재 확인
     if not hasattr(user, 'profile') or user.profile.embedding_user is None:
         return []
 
     user_vector = user.profile.embedding_user
 
     try:
-        # 2. 쿼리셋 구성 (벡터 거리 계산)
+        # [Step 1] Get URLs of articles I've already saved/viewed
+        my_saved_urls = Article.objects.filter(user=user).values_list('url', flat=True)
+
+        # [Step 2] Build Candidates Pool - Expand to 100
         candidates = Article.objects.annotate(
             distance=CosineDistance('embedding_pytorch', user_vector)
         ).exclude(
             embedding_pytorch__isnull=True
+        ).exclude(
+            url__in=my_saved_urls # Exclude my saved articles
+        ).exclude(
+            user=user # Exclude articles I created
         )
 
-        # [필터] Region 적용
         if region:
             candidates = candidates.filter(region=region)
-
-        # ---------------------------------------------------------
-        # 3. [핵심] 다양성 확보 로직 (Candidate Pool Sampling)
-        # ---------------------------------------------------------
         
-        # (A) 너무 가까운 기사(본인 등) 제외 (거리 0.001 미만)
-        # 같은 기사가 중복 추천되는 것을 방지
-        candidates = candidates.filter(distance__gt=0.001)
-
-        # (B) 후보군 크기 설정 (Pool Size)
-        # 데이터가 적을 땐 30개, 많을 땐 15개 정도를 후보로 둠
-        pool_size = 30 
+        # ★ Fetch top 100 for diversity
+        pool = list(candidates.order_by('distance')[:100])
         
-        # (C) 상위 N개 후보 가져오기 (이 안에는 '가장 가까운 것' + '적당히 가까운 것'이 섞임)
-        top_candidates = list(candidates.order_by('distance')[:pool_size])
+        if not pool: return []
 
-        # (D) 후보군이 요청한 개수보다 적으면 그냥 다 줌
-        if len(top_candidates) <= limit:
-            final_selection = top_candidates
+        # ---------------------------------------------------
+        # 3. Slot Filling
+        # ---------------------------------------------------
+        final_selection = []
+        selected_ids = set() # For de-duplication
+
+        # ===================================================
+        # [Slot 1] Deep Dive (Prioritize Insight)
+        # ===================================================
+        # Search for insight articles within the entire pool (100)
+        insight_candidates = [
+            a for a in pool 
+            if a.article_type in ['INSIGHT', 'OPINION', 'TUTORIAL']
+        ]
+        
+        if insight_candidates:
+            # If insights exist, pick the one with highest similarity
+            pick = insight_candidates[0]
+            pick.reason_tag = "🎯 Deep Dive"
+            pick.reason_desc = "In-depth analysis of your interest"
         else:
-            # (E) ★ 랜덤 샘플링 (Shuffle) ★
-            # 상위 30개 중에서 무작위로 3개를 뽑음 -> 편향 방지 & 매번 다른 결과
-            final_selection = random.sample(top_candidates, limit)
-
-            # (선택적) 만약 더 정교하게 하려면, 여기서 카테고리가 겹치지 않게 뽑을 수도 있음
-            # 하지만 지금은 Random Sample만으로도 충분한 다양성이 확보됨.
-
-        # 4. 결과 포맷팅
-        results = []
-        for article in final_selection:
-            # 거리(0~2)를 유사도(%)로 변환
-            similarity_score = max(0, 1 - article.distance) 
-
-            results.append({
-                "id": article.id,
-                "title": article.title,
-                "summary": article.summary[:100] + "..." if article.summary else "",
-                "region": article.region,
-                "similarity": round(similarity_score * 100, 1), 
-                "source": "Vector Rec" 
-            })
+            # If no insight in top 100, pick the overall #1
+            pick = pool[0]
+            pick.reason_tag = "🔥 Top Pick"
+            pick.reason_desc = "Most relevant to your taste"
         
-        # (F) 최종 결과도 유사도 순으로 다시 정렬해서 보여줌 (사용자 경험 위해)
-        results.sort(key=lambda x: x['similarity'], reverse=True)
+        final_selection.append(pick)
+        selected_ids.add(pick.id)
+
+
+        # ===================================================
+        # [Slot 2] Broaden View (Expand Category)
+        # ===================================================
+        target_category = pick.category
+        
+        # 1. Same category
+        # 2. Not already selected
+        slot2_candidates = [
+            a for a in pool 
+            if a.category == target_category and a.id not in selected_ids
+        ]
+        
+        if slot2_candidates:
+            # Pick random from top 10 to avoid always picking #1
+            range_limit = min(len(slot2_candidates), 10)
+            pick = random.choice(slot2_candidates[:range_limit]) 
             
-        return results
+            pick.reason_tag = f"📂 {target_category}"
+            pick.reason_desc = f"More from {target_category}"
+        else:
+            # If no same category, pick the next best relevant one
+            remain = [a for a in pool if a.id not in selected_ids]
+            if remain:
+                pick = remain[0]
+                pick.reason_tag = "⚡ Trending"
+                pick.reason_desc = "Highly recommended for you"
+            else:
+                return format_results(final_selection)
+
+        final_selection.append(pick)
+        selected_ids.add(pick.id)
+
+
+        # ===================================================
+        # [Slot 3] Serendipity (New Discovery)
+        # ===================================================
+        # 1. Different category from Slot 1
+        # 2. Not already selected
+        # 3. ★ Search from rank 10~100 to ensure diversity
+        
+        slot3_candidates = [
+            a for a in pool[10:] 
+            if a.id not in selected_ids and a.category != target_category
+        ]
+
+        if slot3_candidates:
+            pick = random.choice(slot3_candidates)
+            pick.reason_tag = "✨ Discovery"
+            pick.reason_desc = "Fresh inspiration for you"
+        else:
+            # Fallback: pick any remaining random
+            remain = [a for a in pool if a.id not in selected_ids]
+            if remain:
+                pick = random.choice(remain) 
+                pick.reason_tag = "🎲 Random Pick"
+                pick.reason_desc = "Light read you might like"
+            else:
+                 return format_results(final_selection)
+
+        final_selection.append(pick)
+
+        return format_results(final_selection)
 
     except Exception as e:
-        logger.error(f"Vector Recommendation Error: {e}")
+        logger.error(f"Portfolio Recommendation Error: {e}")
         return []
+
+# Helper: Result Formatting
+def format_results(article_list):
+    results = []
+    for article in article_list:
+        similarity_score = max(0, 1 - article.distance)
+        
+        raw_text = article.summary if article.summary else article.content
+        clean_text = clean_html(raw_text or "")
+        display_summary = clean_text[:150] + "..." if len(clean_text) > 150 else clean_text
+        
+        safe_thumb = article.thumbnail_url if article.thumbnail_url else ""
+
+        results.append({
+            "id": article.id,
+            "title": article.title,
+            "summary": display_summary,
+            "url": article.url,
+            "thumbnail": safe_thumb,
+            "date": article.created_at.strftime("%Y-%m-%d"),
+            "region": article.region,
+            "similarity": round(similarity_score * 100, 1),
+            "source": "My Library",
+            "reason_tag": getattr(article, 'reason_tag', 'Recommended'),
+            "reason_desc": getattr(article, 'reason_desc', '')
+        })
+    
+    # Return in fixed order: [Deep Dive] -> [Category] -> [Discovery]
+    return results
