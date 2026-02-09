@@ -21,7 +21,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-default-key-for-dev")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # 환경변수에서 호스트 목록을 가져오고, 없으면 기본값(로컬+서버IP+도메인)을 사용합니다.
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost 127.0.0.1 43.203.231.70 news.young-dev.link .young-dev.link").split()
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost 127.0.0.1 52.79.176.176 news.young-dev.link .young-dev.link").split()
 
 
 # Application definition
