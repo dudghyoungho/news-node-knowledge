@@ -166,8 +166,8 @@ CSRF_TRUSTED_ORIGINS = [
     "https://www.news.young-dev.link",
     "http://localhost:8000",            # 로컬 개발
     "http://127.0.0.1:8000",
-    "http://43.203.231.70",             # 서버 IP (HTTP)
-    "https://43.203.231.70",            # 서버 IP (HTTPS)
+    "http://52.79.176.176",             # 서버 IP (HTTP)
+    "https://52.79.176.176",            # 서버 IP (HTTPS)
 ]
 
 # 2. CORS 허용 출처 (크롬 익스텐션 & 프론트엔드)
