@@ -24,9 +24,10 @@ const NEWS_DOMAINS = [
     "theconversation.com",
     "sbs.com.au",
 
-    // [Korea - Portal]
+    // [Korea - Portal & Aggregator]
     "news.naver.com", 
-    "v.daum.net", 
+    "v.daum.net",
+    "news.google.com", // 구글 뉴스 추가
 
     // [Korea - RSS Feeds]
     "mk.co.kr",         // 매일경제
@@ -34,10 +35,14 @@ const NEWS_DOMAINS = [
     "nocutnews.co.kr",  // 노컷뉴스
     "sbs.co.kr",        // SBS (한국)
     "donga.com",        // 동아일보 (스포츠동아 포함)
+    "korea.kr",         // 대한민국 정책브리핑 (정책/인사이트)
 
     // [Tech & Blogs]
     "medium.com", 
-    "velog.io"
+    "velog.io",
+    "news.ycombinator.com", // Hacker News
+    "geohot.github.io",     // George Hotz Blog
+    "woowahan.com"          // 우아한형제들 기술블로그 (techblog.woowahan.com)
 ];
 
 // 3. 탭 업데이트 감지 (Lazy Injection & Duplicate Check)

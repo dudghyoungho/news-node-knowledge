@@ -61,6 +61,72 @@
         #status { font-size: 12px; color: #888; text-align: center; margin-top: 10px; min-height: 15px;}
         .footer-link { display: block; text-align: right; font-size: 11px; color: #aaa; text-decoration: none; margin-top: 8px; }
         .footer-link:hover { color: #666; }
+
+        /* --- [추가됨] 토글 스위치 CSS --- */
+        .settings-box {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .switch-label {
+            font-size: 13px;
+            font-weight: bold;
+            color: #555;
+        }
+        .switch-desc {
+            font-size: 11px;
+            color: #999;
+            margin: 0;
+            line-height: 1.3;
+        }
+        /* The switch - the box around the slider */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 34px;
+            height: 20px;
+        }
+        /* Hide default HTML checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        /* The slider */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #03C75A;
+        }
+        input:checked + .slider:before {
+            transform: translateX(14px);
+        }
     </style>
 </head>
 <body>
@@ -96,6 +162,19 @@
         <button id="btn-save" class="hidden">Save to My Library</button>
     
         <button id="btn-graph">View Library</button>
+
+        <div class="settings-box">
+            <div class="switch-row">
+                <span class="switch-label">Context Learning</span>
+                <label class="switch">
+                    <input type="checkbox" id="toggle-tracking">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <p class="switch-desc">
+                Collect reading history to build your personal knowledge map.
+            </p>
+        </div>
     
         <a href="#" id="btn-logout" class="footer-link">Log out</a>
     </div>
