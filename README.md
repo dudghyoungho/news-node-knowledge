@@ -1,5 +1,3 @@
-<img width="961" height="878" alt="image" src="https://github.com/user-attachments/assets/8a6c6f9e-89ff-4b3e-bcda-641be03b6413" /><div align="center">
-
   <a href="https://github.com/your-username/news-node-knowledge">
     <img src="https://img.shields.io/badge/release-v2.0.0-blue.svg?style=for-the-badge" alt="version" />
   </a>
