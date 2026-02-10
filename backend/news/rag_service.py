@@ -8,7 +8,7 @@ import numpy as np
 from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
-from .models import Article
+from .models import Article, UserActionLog
 from .ai_service import get_completion  # ai_service에서 가져오기
 from pgvector.django import CosineDistance
 

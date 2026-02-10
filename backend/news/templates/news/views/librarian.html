@@ -3,8 +3,49 @@
     
     <div class="librarian-section">
         <h3>Knowledge Time Capsule</h3>
+        <p class="section-desc">Revisit your past readings.</p>
         <div id="review-card" class="ai-card">
             <p class="loading-text">Loading memory...</p>
+        </div>
+    </div>
+
+    <div class="librarian-section" id="section-bridge-dashboard">
+        <div class="section-title-row">
+            <h3>Knowledge Context Map</h3>
+            <span class="badge" style="background:#6c5ce7; color:white;">Context Analysis</span>
+        </div>
+        <p class="section-desc">Tracing the lineage of your latest reading.</p>
+        
+        <div id="bridge-loading-state" style="padding: 30px; text-align: center; color: #636e72; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
+            <div class="loading-text" style="font-size: 13px;">Analyzing context connections...</div>
+        </div>
+        
+        <div class="bridge-container-embedded" id="bridge-content-box" style="display: none;">
+            
+            <div id="dash-slot-a" class="bridge-card origin-card" style="display:none;">
+                <div class="bridge-label">⚡ 발단 (Origin)</div>
+                <div class="bridge-content">
+                    <div class="bridge-keywords" style="margin-bottom:5px;"></div>
+                    <div class="bridge-title"></div>
+                    <div class="bridge-comment"></div>
+                </div>
+            </div>
+
+            <div class="bridge-anchor-embedded">
+                <div class="anchor-line"></div>
+                <div class="anchor-label" id="dash-anchor-title">Reading...</div>
+                <div class="anchor-line"></div>
+            </div>
+
+            <div id="dash-slot-b" class="bridge-card verdict-card" style="display:none;">
+                <div class="bridge-label">⚖️ 검증 (Verdict)</div>
+                <div class="bridge-content">
+                    <div class="bridge-keywords" style="margin-bottom:5px;"></div>
+                    <div class="bridge-title"></div>
+                    <div class="bridge-comment"></div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -14,7 +55,6 @@
             <span class="badge vector-badge">Vector Analysis</span>
         </div>
         <p class="section-desc">Recommended based on your reading depth.</p>
-        
         <div id="vector-list">
             <p class="loading-text">Analyzing your taste...</p>
         </div>
@@ -25,10 +65,7 @@
             <h3>Knowledge Discovery</h3>
             <span class="badge search-badge">New Topics</span>
         </div>
-        <div id="discovery-keywords" style="margin-bottom: 15px;">
-            <p class="section-desc">Generating keywords...</p>
-        </div>
-        
+        <div id="discovery-keywords" style="margin-bottom: 15px;"></div>
         <div id="external-list">
             <p class="loading-text">Searching new articles...</p>
         </div>

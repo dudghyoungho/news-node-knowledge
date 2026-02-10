@@ -497,3 +497,245 @@ a:hover { text-decoration: underline; color: #fff; }
     .lib-card-title { font-size: 14px; }
     .lib-card-desc { display: none; } /* 공간 부족 시 요약 숨김 */
 }
+
+
+/* =========================================
+   12. Article Modal & Knowledge Bridge
+   ========================================= */
+
+/* --- Modal Base --- */
+.modal-overlay {
+    position: fixed;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85); 
+    z-index: 2000;
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    backdrop-filter: blur(8px); /* 배경 블러 효과 강화 */
+    opacity: 0;
+    animation: fadeIn 0.3s forwards; /* 부드러운 등장 */
+}
+
+@keyframes fadeIn {
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background: #1e272e; 
+    width: 90%; 
+    max-width: 600px;
+    border-radius: 16px; 
+    padding: 30px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.1);
+    position: relative; 
+    max-height: 85vh; 
+    overflow-y: auto;
+    
+    /* 스크롤바 디자인 */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+
+.modal-content::-webkit-scrollbar { width: 6px; }
+.modal-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.close-btn {
+    position: absolute; 
+    top: 20px; 
+    right: 20px;
+    background: none; 
+    border: none; 
+    color: #b2bec3; 
+    font-size: 28px; 
+    cursor: pointer;
+    transition: color 0.2s;
+    z-index: 10;
+}
+.close-btn:hover { color: #fff; transform: scale(1.1); }
+
+/* --- Header Section --- */
+.modal-header-section { 
+    margin-bottom: 25px; 
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding-bottom: 15px;
+}
+.meta-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.modal-date { color: #b2bec3; font-size: 13px; font-weight: 500; }
+.modal-badge { 
+    background: rgba(116, 185, 255, 0.2); 
+    color: #74b9ff; 
+    padding: 3px 8px; 
+    border-radius: 4px; 
+    font-size: 11px; 
+    font-weight: 700;
+    border: 1px solid rgba(116, 185, 255, 0.3);
+}
+
+#modal-title { 
+    color: #fff; 
+    font-size: 22px; 
+    margin: 0; 
+    line-height: 1.4; 
+    font-weight: 800; 
+}
+
+/* --- Knowledge Bridge Section --- */
+.bridge-container {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px; 
+    padding: 20px; 
+    margin: 20px 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bridge-card {
+    background: rgba(0, 0, 0, 0.3); 
+    padding: 15px; 
+    border-radius: 8px;
+    margin-bottom: 10px; 
+    position: relative; 
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+.bridge-card:hover { 
+    background: rgba(255, 255, 255, 0.05); 
+    transform: translateX(5px); /* 살짝 오른쪽 이동 */
+}
+
+/* Slot A: Origin (Yellow Theme) */
+.origin-card { border-left: 4px solid #fdcb6e; }
+.origin-card .bridge-label { color: #fdcb6e; font-size: 11px; font-weight: bold; margin-bottom: 6px; letter-spacing: 0.5px; }
+
+/* Slot B: Verdict (Teal Theme) */
+.verdict-card { border-left: 4px solid #00cec9; }
+.verdict-card .bridge-label { color: #00cec9; font-size: 11px; font-weight: bold; margin-bottom: 6px; letter-spacing: 0.5px; }
+
+.bridge-title { 
+    color: #dfe6e9; 
+    font-size: 15px; 
+    font-weight: 700; 
+    margin-bottom: 8px; 
+    line-height: 1.3;
+}
+.bridge-comment { 
+    color: #b2bec3; 
+    font-size: 13px; 
+    font-style: italic; 
+    line-height: 1.4;
+    padding-left: 10px;
+    border-left: 2px solid rgba(255,255,255,0.1);
+}
+
+/* 키워드 태그 */
+.bridge-keywords { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+.bridge-keywords span {
+    background: rgba(255, 255, 255, 0.1); 
+    color: #dfe6e9;
+    padding: 2px 8px; 
+    border-radius: 10px; 
+    font-size: 10px; 
+    font-weight: 600;
+}
+
+/* Anchor Line (중간 연결선) */
+.bridge-anchor {
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    gap: 15px; 
+    margin: 20px 0; 
+    color: #636e72; 
+    font-size: 11px; 
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.anchor-line { height: 1px; background: rgba(255,255,255,0.1); flex: 1; }
+.anchor-dot { 
+    width: 8px; height: 8px; 
+    background: #74b9ff; 
+    border-radius: 50%; 
+    box-shadow: 0 0 10px rgba(116, 185, 255, 0.5); 
+}
+
+/* --- Body & Footer --- */
+.modal-body { margin-top: 20px; }
+.summary-text { 
+    color: #dfe6e9; 
+    line-height: 1.7; 
+    font-size: 15px; 
+    white-space: pre-line; 
+    opacity: 0.9;
+}
+
+.modal-footer { margin-top: 30px; }
+.btn-primary {
+    width: 100%; 
+    padding: 14px; 
+    border-radius: 10px; 
+    border: none;
+    background: linear-gradient(135deg, #0984e3, #74b9ff);
+    color: white; 
+    font-weight: 800; 
+    font-size: 15px;
+    cursor: pointer; 
+    transition: transform 0.2s;
+    box-shadow: 0 4px 15px rgba(9, 132, 227, 0.4);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(9, 132, 227, 0.6); }
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+    .modal-content { width: 95%; padding: 20px; max-height: 90vh; }
+    #modal-title { font-size: 18px; }
+    .bridge-title { font-size: 14px; }
+}
+
+
+
+/* =========================================
+   13. Embedded Bridge (Dashboard Section)
+   ========================================= */
+   .bridge-container-embedded {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bridge-anchor-embedded {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin: 10px 0;
+    color: #636e72;
+    font-size: 12px;
+}
+
+.anchor-label {
+    background: #2d3436;
+    padding: 4px 12px;
+    border-radius: 20px;
+    color: #b2bec3;
+    font-size: 11px;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 기존 bridge-card 스타일을 재사용하되, 임베디드용 미세 조정 */
+.bridge-container-embedded .bridge-card {
+    background: rgba(0, 0, 0, 0.2);
+    box-shadow: none; /* 모달보다 가볍게 */
+}

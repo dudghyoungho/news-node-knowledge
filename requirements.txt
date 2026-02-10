@@ -20,3 +20,4 @@ feedparser
 torch --index-url https://download.pytorch.org/whl/cpu
 sentence-transformers
 googlenewsdecoder
+spacy

@@ -1,34 +1,41 @@
 # backend/news/urls.py
 
 from django.urls import path
-from . import views
+# [핵심] views 패키지 내부의 각 모듈을 명시적으로 임포트
+from .views import (
+    auth_views,
+    article_views,
+    stats_views,
+    data_views,
+    rag_views,
+    page_views,
+    log_views
+)
 
 urlpatterns = [
-    # 1. 인증 관련
-    path('auth/google/', views.google_login, name='google_login'),
+    # 1. 인증 관련 (auth_views)
+    path('auth/google/', auth_views.google_login, name='google_login'),
 
-    # 2. 익스텐션 기능 (크롤링/저장)
-    path('summarize/', views.summarize, name='summarize'), 
-    path('save/', views.save_article, name='save_article'),
+    # 2. 익스텐션 기능 (article_views)
+    path('summarize/', article_views.summarize, name='summarize'), 
+    path('save/', article_views.save_article, name='save_article'),
 
-    # 3. 데이터 API (JSON 반환) - 경로를 깔끔하게 정리
-    # [수정] /api/news/stats/ 로 접근 가능하게 변경
-    path('stats/', views.get_dashboard_stats, name='dashboard_stats'),
-    
-    # [수정] /api/news/graph/data/ 로 명확하게 변경 (HTML 뷰와 구분)
-    path('graph/data/', views.get_knowledge_graph, name='get_knowledge_graph'),
+    # 3. 데이터 API (stats_views, data_views)
+    # [수정] 통계는 stats_views, 그래프 데이터는 data_views로 연결
+    path('stats/', stats_views.get_dashboard_stats, name='dashboard_stats'),
+    path('graph/data/', data_views.get_knowledge_graph, name='get_knowledge_graph'),
 
-    # 4. RAG 기능 API
-    path('rag/review/', views.review_recommendation, name='rag_review'),
-    path('rag/external/', views.external_recommendation, name='rag_external'),
-    path('rag/context/<int:article_id>/', views.context_recommendation, name='rag_context'),
+    # 4. RAG 기능 API (rag_views) - Bridge, Review, External
+    path('articles/<int:article_id>/bridge/', rag_views.article_bridge_view, name='article-bridge'),
+    path('rag/review/', rag_views.review_recommendation, name='rag_review'),
+    path('rag/external/', rag_views.external_recommendation, name='rag_external'),
+    path('rag/context/<int:article_id>/', rag_views.context_recommendation, name='rag_context'),
 
-    # 5. HTML 페이지 렌더링 (Template)
-    # [참고] config/urls.py 때문에 실제 주소는 /api/news/dashboard/ 가 됨.
-    # 나중에 config/urls.py에서 분리하는 것을 추천하지만, 지금은 그대로 둠.
-    path('dashboard/', views.dashboard_page, name='dashboard'),
-    path('graph/', views.graph_page, name='graph_view'),
+    # 5. HTML 페이지 렌더링 (page_views)
+    path('dashboard/', page_views.dashboard_page, name='dashboard'),
+    path('graph/', page_views.graph_page, name='graph_view'),
+    path('privacy/', page_views.privacy_policy, name='privacy_policy'),
 
-    path('privacy/', views.privacy_policy, name='privacy_policy'),
-    path('logs/', views.LogCreateView.as_view(), name='log-create'),
+    # 6. 로그 관련 (log_views)
+    path('logs/', log_views.LogCreateView.as_view(), name='log-create'),
 ]

@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from pgvector.django import VectorField
 
 # ==========================================
@@ -62,6 +63,8 @@ class Article(models.Model):
     content = models.TextField(blank=True, null=True)
     summary = models.TextField(blank=True, null=True)
     category = models.CharField(max_length=100, blank=True, null=True)
+    # [New] 개체명 저장 (예: {"PERSON": ["민희진"], "ORG": ["하이브"]})
+    entities = models.JSONField(default=dict, blank=True)
     
     article_type = models.CharField(
         max_length=20, 
@@ -76,7 +79,7 @@ class Article(models.Model):
     
     thumbnail_url = models.URLField(max_length=1000, blank=True, null=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

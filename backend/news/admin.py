@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils import timezone
 from urllib.parse import urlparse
 from .models import Article, UserActionLog, UserProfile
 
@@ -17,7 +18,6 @@ class UserProfileAdmin(admin.ModelAdmin):
     user_info.short_description = "User"
 
     def vector_status(self, obj):
-        # [수정] 벡터가 배열이므로 is not None으로 체크해야 함
         if obj.embedding_user is not None:
             return format_html(
                 '<span style="color: green; font-weight:bold;">✅ Active (768-dim)</span>'
@@ -27,13 +27,11 @@ class UserProfileAdmin(admin.ModelAdmin):
 
     def vector_details(self, obj):
         info = []
-        # [수정] is not None 체크
         if obj.embedding_user is not None:
             info.append(f"Main Vector: {len(obj.embedding_user)} dimensions")
         else:
             info.append("Main Vector: None")
             
-        # [수정] is not None 체크
         if obj.embedding_user_openai is not None:
             info.append(f"OpenAI Backup: {len(obj.embedding_user_openai)} dimensions")
         
@@ -46,10 +44,12 @@ class UserProfileAdmin(admin.ModelAdmin):
 # ========================================================
 @admin.register(Article)
 class ArticleAdmin(admin.ModelAdmin):
+    # [수정] entities_summary 추가 (NER 결과 확인용)
     list_display = (
         'id',
         'type_badge',       
-        'category_colored', 
+        'category_colored',
+        'entities_summary', # [New] NER 요약 컬럼 추가
         'source_display',   
         'title_short', 
         'region_flag',      
@@ -69,8 +69,45 @@ class ArticleAdmin(admin.ModelAdmin):
     
     search_fields = ('title', 'url', 'summary')
     exclude = ('embedding_pytorch', 'embedding_openai') 
-    readonly_fields = ('created_at', 'updated_at', 'vector_info')
+    
+    # [수정] entities 필드를 상세 화면에서 볼 수 있도록 readonly_fields에 추가
+    readonly_fields = ('created_at', 'updated_at', 'vector_info', 'entities')
     list_per_page = 20
+
+    # -----------------------------------------------------
+    # [New] NER 개체명 요약 표시
+    # -----------------------------------------------------
+    def entities_summary(self, obj):
+        if not obj.entities:
+            return format_html('<span style="color: #ccc;">-</span>')
+        
+        html = []
+        # 주요 라벨에 대한 색상 지정
+        label_colors = {
+            'PERSON': '#007bff',  # 파란색 (인물)
+            'ORG':    '#28a745',  # 초록색 (조직/기업)
+            'GPE':    '#dc3545',  # 빨간색 (국가/도시)
+        }
+        
+        # entities 딕셔너리 순회
+        for label, items in obj.entities.items():
+            if not items: continue
+            
+            color = label_colors.get(label, '#6c757d') # 기본 회색
+            count = len(items)
+            # 툴팁(title 속성)에 실제 추출된 단어들을 5개까지만 보여줌
+            tooltip = ", ".join(items[:10])
+            
+            tag = (
+                f'<span title="{tooltip}" style="background-color: {color}; color: white; '
+                f'padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-right: 4px; font-weight: bold; cursor: help;">'
+                f'{label} {count}</span>'
+            )
+            html.append(tag)
+            
+        return format_html("".join(html))
+    
+    entities_summary.short_description = "NER (Keywords)"
 
     # -----------------------------------------------------
     # 1. 기사 성격 (Type) 배지
@@ -139,18 +176,19 @@ class ArticleAdmin(admin.ModelAdmin):
     status_icon.short_description = "Stat"
 
     def vector_check(self, obj):
-        # [수정] 에러 발생 지점: is not None 체크 추가
         color = "#28a745" if obj.embedding_pytorch is not None else "#dee2e6"
         return format_html('<div style="width: 12px; height: 12px; background-color: {}; border-radius: 50%; margin: 0 auto;"></div>', color)
     vector_check.short_description = "Vec"
 
     def created_at_fmt(self, obj):
-        return obj.created_at.strftime("%m-%d %H:%M")
-    created_at_fmt.short_description = "Created"
+        local_time = timezone.localtime(obj.created_at)
+        return local_time.strftime("%m-%d %H:%M")
+    
+    created_at_fmt.short_description = "Published At"
+    created_at_fmt.admin_order_field = 'created_at'
 
     def vector_info(self, obj):
         info = []
-        # [수정] is not None 체크
         if obj.embedding_pytorch is not None:
             info.append(f"✅ S-RoBERTa Vector Loaded (Length: {len(obj.embedding_pytorch)})")
         else:

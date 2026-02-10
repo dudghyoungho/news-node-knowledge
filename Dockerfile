@@ -22,6 +22,9 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt && \
     pip install gunicorn trafilatura
 
+RUN python -m spacy download en_core_web_sm
+RUN python -m spacy download ko_core_news_sm
+
 # 소스 코드 복사
 COPY . /app/
 
