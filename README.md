@@ -21,7 +21,7 @@
     <b>Your Personal AI Librarian & Knowledge Graph Generator</b>
     <br />
     <br />
-    <a href="https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID"><strong>Download Extension »</strong></a>
+    <a href="https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID](https://chromewebstore.google.com/detail/news-node-knowledge-ai-ne/onfldbkpmmcaepamcdfbkehekmpbmonj"><strong>Download Extension »</strong></a>
     <br />
     <br />
     <a href="#demo">View Demo</a>
