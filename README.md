@@ -1,14 +1,17 @@
+네, 죄송합니다. Markdown 형식이 중간에 끊겼군요.
+아래에 **완성된 `README.md` 전체 코드**를 다시 보내드립니다. 복사해서 그대로 사용하시면 됩니다.
+
+```markdown
 <div align="center">
 
   <a href="https://github.com/your-username/news-node-knowledge">
-    <img src="https://img.shields.io/badge/release-v1.1.2-blue.svg?style=for-the-badge" alt="version" />
+    <img src="https://img.shields.io/badge/release-v2.0.0-blue.svg?style=for-the-badge" alt="version" />
   </a>
   <img src="https://img.shields.io/badge/django-092E20?style=for-the-badge&logo=django&logoColor=white" alt="django" />
   <img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="python" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="tailwind" />
   <img src="https://img.shields.io/badge/docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="docker" />
-  <img src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="aws" />
   <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="postgres" />
-  <img src="https://img.shields.io/badge/Chrome_Web_Store-4285F4?style=for-the-badge&logo=google-chrome&logoColor=white" alt="chrome-extension" />
 
   <br />
   <br />
@@ -18,7 +21,7 @@
   <h3 align="center">News Node Knowledge</h3>
 
   <p align="center">
-    <b>AI-Powered News Archiver & Knowledge Graph Generator</b>
+    <b>Your Personal AI Librarian & Knowledge Graph Generator</b>
     <br />
     <br />
     <a href="https://chrome.google.com/webstore/detail/YOUR_EXTENSION_ID"><strong>Download Extension »</strong></a>
@@ -36,11 +39,11 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#new-features">✨ New Features (v2.0)</a></li>
     <li><a href="#architecture">System Architecture</a></li>
     <li><a href="#built-with">Built With</a></li>
     <li><a href="#getting-started">Getting Started</a></li>
     <li><a href="#project-structure">Project Structure</a></li>
-    <li><a href="#features">Key Features</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
   </ol>
@@ -50,21 +53,49 @@
 
 ## About The Project
 
-> **"Stop drowning in information. Start building your knowledge."**
+> **"Turn fleeting news into permanent knowledge."**
 
-**News Node Knowledge** is a comprehensive platform designed to revolutionize how we consume digital news. By combining a browser-based **Chrome Extension** with a robust **Django backend**, it bridges the gap between passive reading and active knowledge management.
+**News Node Knowledge** is not just a bookmarking tool—it is your personal **AI Librarian**. By combining a Chrome Extension with a powerful Django backend, it transforms how you consume, organize, and recall digital information.
 
-Instead of fleeting news consumption, this tool allows users to:
-1.  **Summarize** complex articles instantly using Generative AI (OpenAI GPT).
-2.  **Archive** content securely into a personal database.
-3.  **Visualize** the flow of events using a Knowledge Graph.
-4.  **Search** through archived news using semantic understanding (Vector Search).
+It goes beyond simple summarization by creating a **Knowledge Graph** of your reading history, connecting related events, and presenting them in a curated **Newspaper Layout** tailored specifically to your interests.
+
+---
+
+## ✨ New Features (v2.0)
+
+### 1. 📰 The AI Librarian (Newspaper View)
+Forget the boring list view. The dashboard now features a **Classic Newspaper Layout** powered by **Tailwind CSS**.
+* **Time Capsule**: Revisit past articles with a "On this day" style memory card.
+* **Taste Stream**: AI-curated recommendations based on your reading vector depth.
+* **Discovery**: Automatically finds new topics and keywords you might be interested in.
+
+### 2. 🌉 Knowledge Context Map (The Bridge)
+Understanding the *context* is as important as the news itself.
+* **Origin (Top)**: Shows the "Spark" or the initial event that caused the news.
+* **Verdict (Bottom)**: Shows the current status or expert analysis.
+* **Connection**: Visualizes the lineage between articles to help you see the bigger picture.
+
+### 3. 🧠 Enhanced NER (Named Entity Recognition)
+* Automatically extracts **People (PERSON)**, **Organizations (ORG)**, and **Locations (LOC)** from articles during crawling.
+* Builds a richer database for precise searching and filtering.
+
+---
 
 ## 📸 Demo
-### Chrome Extension
-<img width="1280" height="800" alt="image" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
-### Dashboard Page
-<img width="1280" height="800" alt="2" src="https://github.com/user-attachments/assets/cae6c7c2-ac39-43ad-9cf4-771d505b6ae0" />
+
+### 1. The AI Librarian Dashboard (Newspaper Theme)
+*A personalized daily newspaper generated from your reading history.*
+<img width="1280" alt="Librarian View" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_NEWSPAPER_VIEW" />
+
+### 2. Knowledge Bridge Modal
+*Tracing the lineage of a story from Origin to Verdict.*
+<img width="1280" alt="Knowledge Bridge" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_BRIDGE_MODAL" />
+
+### 3. Extension Popup
+*Instant summarization and entity extraction.*
+<img width="1280" alt="Extension" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
+
+---
 
 ## System Architecture
 
@@ -75,39 +106,50 @@ graph LR
     User((User)) -->|Chrome Ext| Nginx[Nginx Proxy]
     Nginx -->|HTTPS / WSS| Django[Django Backend]
     Django -->|Auth| Google[Google OAuth2]
-    Django -->|Summarize| OpenAI[OpenAI API]
-    Django -->|Store & Vectorize| DB[(PostgreSQL + pgvector)]
+    Django -->|NLP & GenAI| OpenAI[OpenAI API]
+    Django -->|Vector Search| DB[(PostgreSQL + pgvector)]
+    
+    subgraph Data Processing
+        Crawler[Article Crawler]
+        NER[Entity Extractor]
+        Vector[Embedding Generator]
+    end
+    
+    Django --> Crawler --> NER --> Vector --> DB
+
 ```
 
-* **Frontend**: A Manifest V3 Chrome Extension that interacts with the current tab.
-* **Backend**: Django REST Framework serving APIs for auth, summarization, and data retrieval.
-* **Database**: PostgreSQL with `pgvector` extension for storing vector embeddings of news articles.
-* **Infrastructure**: Hosted on AWS Lightsail, orchestrated via Docker Compose with Nginx as a reverse proxy/SSL terminator.
+* **Frontend**: Chrome Extension (Manifest V3) & Dashboard (Tailwind CSS + Chart.js).
+* **Backend**: Django REST Framework serving APIs for auth, summarization, and RAG (Retrieval-Augmented Generation).
+* **Database**: PostgreSQL with `pgvector` for semantic search and `JSONB` for NER data.
 
 ---
 
 ## 🛠 Built With
 
-### Frontend (Chrome Extension)
-* ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) **ES6+**
-* ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) **HTML5 & CSS3**
-* **Manifest V3**
-* **Google Identity Services (OAuth2)**
+### Frontend
 
-### Backend (Server)
-* ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) **Python 3.11**
-* ![Django](https://img.shields.io/badge/Django-092E20?style=flat-square&logo=django&logoColor=white) **Django REST Framework**
-* ![Gunicorn](https://img.shields.io/badge/Gunicorn-499848?style=flat-square&logo=gunicorn&logoColor=white) **Gunicorn**
+* **ES6+**
+* **Tailwind CSS (New)**
+* **HTML5 & CSS3**
+* **Chart.js** (Data Visualization)
+
+### Backend
+
+* **Python 3.11**
+* **Django REST Framework**
 
 ### Database & AI
-* ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white) **PostgreSQL**
+
+* **PostgreSQL**
 * **pgvector** (Vector Similarity Search)
-* ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=flat-square&logo=openai&logoColor=white) **GPT-4o-mini**
+* **GPT-4o-mini**
 
 ### Infrastructure
-* ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) **Docker & Docker Compose**
-* ![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat-square&logo=nginx&logoColor=white) **Nginx Proxy Manager**
-* ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazon-aws&logoColor=white) **AWS Lightsail**
+
+* **Docker & Docker Compose**
+* **Nginx Proxy Manager**
+* **AWS Lightsail**
 
 ---
 
@@ -116,48 +158,58 @@ graph LR
 To set up a local development environment, follow these steps.
 
 ### Prerequisites
+
 * Docker & Docker Compose installed
-* Git installed
 * OpenAI API Key
 
 ### Installation
 
-1.  **Clone the repository**
-    ```bash
-    git clone [https://github.com/your-username/news-node-knowledge.git](https://github.com/your-username/news-node-knowledge.git)
-    cd news-node-knowledge
-    ```
+1. **Clone the repository**
+```bash
+git clone [https://github.com/your-username/news-node-knowledge.git](https://github.com/your-username/news-node-knowledge.git)
+cd news-node-knowledge
 
-2.  **Configure Environment Variables**
-    Create a `.env` file in the root directory based on the example.
-    ```bash
-    cp .env.example .env
-    ```
-    Then, edit the `.env` file with your credentials:
-    ```ini
-    # .env configuration
-    DEBUG=1
-    SECRET_KEY=your_secret_key_here
-    ALLOWED_HOSTS=localhost 127.0.0.1
-    
-    DB_NAME=news_db
-    DB_USER=postgres
-    DB_PASSWORD=your_db_password
-    DB_HOST=db
-    
-    OPENAI_API_KEY=sk-proj-your-openai-key
-    ```
+```
 
-3.  **Run with Docker**
-    ```bash
-    docker-compose up -d --build
-    ```
 
-4.  **Load Extension (Developer Mode)**
-    * Open Chrome and navigate to `chrome://extensions`.
-    * Toggle **Developer mode** (top right corner).
-    * Click **Load unpacked**.
-    * Select the `extension` folder from this repository.
+2. **Configure Environment Variables**
+Create a `.env` file in the root directory.
+```bash
+cp .env.example .env
+
+```
+
+
+Edit the `.env` file:
+```ini
+# .env configuration
+DEBUG=1
+SECRET_KEY=your_secret_key_here
+ALLOWED_HOSTS=localhost 127.0.0.1
+
+DB_NAME=news_db
+DB_USER=postgres
+DB_PASSWORD=your_db_password
+DB_HOST=db
+
+OPENAI_API_KEY=sk-proj-your-openai-key
+
+```
+
+
+3. **Run with Docker**
+```bash
+docker-compose up -d --build
+
+```
+
+
+4. **Load Extension (Developer Mode)**
+* Open `chrome://extensions`.
+* Toggle **Developer mode**.
+* Click **Load unpacked** and select the `extension` folder.
+
+
 
 ---
 
@@ -165,31 +217,20 @@ To set up a local development environment, follow these steps.
 
 ```text
 .
-├── backend/                # Django Backend Application
-│   ├── config/             # Project Settings (Settings, URLs)
-│   ├── news/               # News App (Models, Views, Serializers)
-│   ├── manage.py
-│   └── Dockerfile
-├── extension/              # Chrome Extension Source
-│   ├── manifest.json       # Manifest V3 Configuration
-│   ├── popup.html          # Extension UI
-│   ├── popup.js            # Frontend Logic
-│   └── icons/
-├── nginx/                  # Nginx Configuration
-├── docker-compose.prod.yml # Production Orchestration
-├── requirements.txt        # Python Dependencies
+├── backend/
+│   ├── news/
+│   │   ├── services/       # Business Logic (Crawler, AI, RAG)
+│   │   ├── views/          # API Controllers
+│   │   └── models.py       # DB Schema (Article, Entity, etc.)
+│   └── ...
+├── extension/              # Chrome Extension
+│   ├── popup.html
+│   └── popup.js
+├── nginx/
+├── docker-compose.prod.yml
 └── README.md
+
 ```
-
----
-
-## Key Features
-
-- [x] **Secure Authentication**: Seamless login via Google OAuth2 with secure token management.
-- [x] **AI Summarization**: Extracts key points, keywords, and sentiment from any news article page.
-- [x] **Knowledge Graph**: Visualizes relationships between archived news topics.
-- [x] **Semantic Search**: Utilizes `pgvector` to find news articles based on context, not just keywords.
-- [x] **Responsive Dashboard**: A dedicated web interface to manage and review archived news.
 
 ---
 
