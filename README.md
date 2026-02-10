@@ -1,3 +1,4 @@
+<div align="center">
   <a href="https://github.com/your-username/news-node-knowledge">
     <img src="https://img.shields.io/badge/release-v2.0.0-blue.svg?style=for-the-badge" alt="version" />
   </a>
