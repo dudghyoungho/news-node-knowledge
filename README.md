@@ -1,7 +1,3 @@
-네, 죄송합니다. Markdown 형식이 중간에 끊겼군요.
-아래에 **완성된 `README.md` 전체 코드**를 다시 보내드립니다. 복사해서 그대로 사용하시면 됩니다.
-
-```markdown
 <div align="center">
 
   <a href="https://github.com/your-username/news-node-knowledge">
