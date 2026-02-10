@@ -1,4 +1,4 @@
-<div align="center">
+<img width="961" height="878" alt="image" src="https://github.com/user-attachments/assets/8a6c6f9e-89ff-4b3e-bcda-641be03b6413" /><div align="center">
 
   <a href="https://github.com/your-username/news-node-knowledge">
     <img src="https://img.shields.io/badge/release-v2.0.0-blue.svg?style=for-the-badge" alt="version" />
@@ -59,7 +59,7 @@ It goes beyond simple summarization by creating a **Knowledge Graph** of your re
 
 ---
 
-## ✨ New Features (v2.0)
+## ✨ New Features (v1.5.0)
 
 ### 1. 📰 The AI Librarian (Newspaper View)
 Forget the boring list view. The dashboard now features a **Classic Newspaper Layout** powered by **Tailwind CSS**.
@@ -83,11 +83,10 @@ Understanding the *context* is as important as the news itself.
 
 ### 1. The AI Librarian Dashboard (Newspaper Theme)
 *A personalized daily newspaper generated from your reading history.*
-<img width="1280" alt="Librarian View" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_NEWSPAPER_VIEW" />
+<img width="1280" alt="Librarian View" src="https://github.com/user-attachments/assets/39102d5c-9608-43c2-a216-cc8abb6d6719" />
 
 ### 2. Knowledge Bridge Modal
-*Tracing the lineage of a story from Origin to Verdict.*
-<img width="1280" alt="Knowledge Bridge" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_BRIDGE_MODAL" />
+*Tracing the lineage of a story from Origin to Verdict.
 
 ### 3. Extension Popup
 *Instant summarization and entity extraction.*
