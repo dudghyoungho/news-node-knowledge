@@ -34,7 +34,7 @@ def summarize(request):
 
     # 이미 저장된 기사인지 확인
     if Article.objects.filter(user=request.user, url=url, status=Article.Status.SAVED).exists():
-        return Response({'message': '이미 서재에 저장된 기사입니다.', 'status': 'ALREADY_SAVED'}, status=status.HTTP_200_OK)
+        return Response({'이미 저장된 기사입니다!'}, status=status.HTTP_200_OK)
 
     try:
         # 1. 크롤링

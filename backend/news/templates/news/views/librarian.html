@@ -1,73 +1,117 @@
-<div id="view-librarian" class="view-section" style="display: none;">
-    <div class="header">AI Librarian</div>
+<div id="view-librarian" class="view-section" style="width: 100%; min-height: 100vh; background-color: #e9e5de; padding: 20px; display: none;">
     
-    <div class="librarian-section">
-        <h3>Knowledge Time Capsule</h3>
-        <p class="section-desc">Revisit your past readings.</p>
-        <div id="review-card" class="ai-card">
-            <p class="loading-text">Loading memory...</p>
-        </div>
-    </div>
-
-    <div class="librarian-section" id="section-bridge-dashboard">
-        <div class="section-title-row">
-            <h3>Knowledge Context Map</h3>
-            <span class="badge" style="background:#6c5ce7; color:white;">Context Analysis</span>
-        </div>
-        <p class="section-desc">Tracing the lineage of your latest reading.</p>
+    <div class="max-w-7xl w-full mx-auto relative">
         
-        <div id="bridge-loading-state" style="padding: 30px; text-align: center; color: #636e72; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.1);">
-            <div class="loading-text" style="font-size: 13px;">Analyzing context connections...</div>
-        </div>
+        <main class="bg-[#F4F1EA] text-[#1A1A1A] shadow-2xl relative p-6 md:p-10 border border-gray-300">
+            <div class="absolute inset-0 paper-texture"></div>
+
+            <header class="border-b-4 border-black mb-8 pb-2 text-center">
+                <div class="flex justify-between border-b border-black pb-2 mb-4 text-xs font-bold uppercase tracking-widest text-gray-600">
+                    <span>Vol. {{ user.profile.level|default:"1" }}</span>
+                    <span>{{ user_region|default:"KR" }} Edition</span>
+                    <span>{% now "Y-m-d" %}</span>
+                </div>
+                <h1 class="font-serif-title text-5xl md:text-7xl font-black uppercase tracking-tight mb-4 select-none">
+                    The AI Librarian
+                </h1>
+                <div class="flex justify-center gap-6 py-2 border-t-2 border-black text-xs font-bold uppercase tracking-widest">
+                    <span>Reader: <span class="text-blue-800">{{ user.username }}</span></span>
+                    <span>System: <span class="text-red-800">Ready</span></span>
+                </div>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                <div class="lg:col-span-8">
+                    
+                    <article class="mb-8 border-b border-gray-400 pb-8">
+                        <span class="text-red-800 font-bold text-xs tracking-widest mb-2 block">KNOWLEDGE TIME CAPSULE</span>
+                        <h2 class="font-serif-title text-3xl md:text-4xl font-bold mb-4 leading-tight">
+                            "Revisiting Your Intellectual Journey"
+                        </h2>
+                        
+                        <div id="review-card" class="bg-white/50 border border-gray-300 p-6 min-h-[150px]">
+                            <p class="loading-text font-serif-title italic text-gray-500 text-center pt-4">Retrieving past memories...</p>
+                        </div>
+                    </article>
+
+                    <div id="section-bridge-dashboard" class="mb-8">
+                         <div class="flex items-center gap-2 mb-4">
+                            <h3 class="font-serif-title text-2xl font-bold">Knowledge Context Map</h3>
+                            <span class="bg-black text-white text-[10px] px-2 py-1 uppercase font-bold">Analysis</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-4 italic">Tracing the lineage of your latest reading.</p>
+
+                        <div id="bridge-loading-state" class="p-8 text-center border-2 border-dashed border-gray-300 bg-gray-50 rounded">
+                            <div class="loading-text text-sm text-gray-500 font-bold uppercase tracking-widest">Analyzing context connections...</div>
+                        </div>
+
+                        <div id="bridge-content-box" class="bridge-container-embedded grid grid-cols-1 gap-6" style="display: none;">
+                            
+                            <div id="dash-slot-a" class="origin-card" style="display:none;">
+                                <span class="text-gray-500 font-bold text-[10px] uppercase tracking-widest mb-1 block">⚡ Origin (발단)</span>
+                                <div class="bridge-content">
+                                    <div class="bridge-keywords mb-2"></div> 
+                                    <h4 class="bridge-title font-serif-title text-xl font-bold mb-2 leading-tight"></h4>
+                                    <p class="bridge-comment text-sm text-justify font-display text-gray-700 mt-2 pl-2 border-l-2 border-gray-200"></p>
+                                </div>
+                            </div>
+
+                            <div id="dash-slot-b" class="verdict-card" style="display:none;">
+                                <span class="text-gray-500 font-bold text-[10px] uppercase tracking-widest mb-1 block">⚖️ Verdict (검증)</span>
+                                <div class="bridge-content">
+                                    <div class="bridge-keywords mb-2"></div>
+                                    <h4 class="bridge-title font-serif-title text-xl font-bold mb-2 leading-tight"></h4>
+                                    <p class="bridge-comment text-sm text-justify font-display text-gray-700 mt-2 pl-2 border-l-2 border-gray-200"></p>
+                                </div>
+                            </div>
+                            
+                            <div class="bridge-anchor-embedded hidden">
+                                <div class="anchor-label" id="dash-anchor-title">Reading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <aside class="lg:col-span-4 border-l border-gray-300 pl-0 lg:pl-8 flex flex-col gap-8">
+                    
+                    <div>
+                        <h4 class="font-bold border-y-2 border-black py-2 text-center uppercase tracking-widest text-xs mb-4">
+                            My Taste Stream
+                        </h4>
+                        <div id="vector-list" class="space-y-4">
+                            <p class="loading-text text-xs text-gray-400 text-center">Analyzing taste vector...</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-8">
+                        <h4 class="font-bold border-y-2 border-black py-2 text-center uppercase tracking-widest text-xs mb-4">
+                            Discovery (New Topics)
+                        </h4>
+                        <div id="discovery-keywords" class="flex flex-wrap gap-2 mb-4 justify-center"></div>
+                        
+                        <div id="external-list" class="space-y-2">
+                             <p class="loading-text text-xs text-gray-400 text-center">Scanning new topics...</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto border-2 border-dashed border-gray-400 p-4 text-center opacity-70">
+                        <div class="font-serif-title italic text-sm">
+                            "Knowledge is the<br>compound interest<br>of curiosity."
+                        </div>
+                    </div>
+
+                </aside>
+            </div>
+
+            <footer class="mt-12 pt-6 border-t-2 border-black text-center">
+                <p class="text-[10px] font-bold uppercase text-gray-400">
+                    © {% now "Y" %} News Node Knowledge • Personal Archive
+                </p>
+            </footer>
+        </main>
         
-        <div class="bridge-container-embedded" id="bridge-content-box" style="display: none;">
-            
-            <div id="dash-slot-a" class="bridge-card origin-card" style="display:none;">
-                <div class="bridge-label">⚡ 발단 (Origin)</div>
-                <div class="bridge-content">
-                    <div class="bridge-keywords" style="margin-bottom:5px;"></div>
-                    <div class="bridge-title"></div>
-                    <div class="bridge-comment"></div>
-                </div>
-            </div>
-
-            <div class="bridge-anchor-embedded">
-                <div class="anchor-line"></div>
-                <div class="anchor-label" id="dash-anchor-title">Reading...</div>
-                <div class="anchor-line"></div>
-            </div>
-
-            <div id="dash-slot-b" class="bridge-card verdict-card" style="display:none;">
-                <div class="bridge-label">⚖️ 검증 (Verdict)</div>
-                <div class="bridge-content">
-                    <div class="bridge-keywords" style="margin-bottom:5px;"></div>
-                    <div class="bridge-title"></div>
-                    <div class="bridge-comment"></div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <div class="librarian-section">
-        <div class="section-title-row">
-            <h3>My Taste Stream</h3>
-            <span class="badge vector-badge">Vector Analysis</span>
-        </div>
-        <p class="section-desc">Recommended based on your reading depth.</p>
-        <div id="vector-list">
-            <p class="loading-text">Analyzing your taste...</p>
-        </div>
-    </div>
-
-    <div class="librarian-section">
-        <div class="section-title-row">
-            <h3>Knowledge Discovery</h3>
-            <span class="badge search-badge">New Topics</span>
-        </div>
-        <div id="discovery-keywords" style="margin-bottom: 15px;"></div>
-        <div id="external-list">
-            <p class="loading-text">Searching new articles...</p>
-        </div>
+        <div class="absolute top-2 -right-2 bottom-2 w-4 bg-black/10 blur-md -z-10 rounded-r"></div>
+        <div class="absolute -bottom-2 left-2 right-2 h-4 bg-black/10 blur-md -z-10 rounded-b"></div>
     </div>
 </div>

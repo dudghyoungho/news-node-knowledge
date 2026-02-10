@@ -31,10 +31,8 @@ window.DashboardData = {
 
     // 3. 최근 뉴스 로드 (사이드바 + Knowledge Map 트리거)
     loadRecentNews: function() {
-        console.log("2. [DashboardData] loadRecentNews() 시작");
+        // console.log("2. [DashboardData] loadRecentNews() 시작");
         const container = document.getElementById('recent-news-list');
-        
-        // Bridge 관련 요소 미리 가져오기
         const bridgeLoading = document.getElementById('bridge-loading-state');
         const bridgeContent = document.getElementById('bridge-content-box');
 
@@ -45,20 +43,21 @@ window.DashboardData = {
             .then(data => {
                 const articles = data.recent_articles || []; 
                 
-                // [CASE A] 최근 기사가 없는 경우 (0개)
+                // [CASE A] 최근 기사가 없는 경우
                 if (articles.length === 0) {
                     container.innerHTML = `<div style="padding: 20px 0; text-align: center; color: #636e72; font-size: 12px;">No recent reading history.</div>`;
                     
-                    // Bridge 섹션도 "데이터 없음" 처리
+                    // Bridge 섹션 (신문 디자인 내부)
                     if (bridgeLoading) {
                         bridgeLoading.style.display = 'block';
+                        // [수정] 텍스트 색상을 Tailwind 클래스로 변경 (text-gray-500)
                         bridgeLoading.innerHTML = `
                             <div style="padding: 10px 0;">
                                 <div style="font-size: 20px; margin-bottom: 8px;">📭</div>
-                                <div style="color: #b2bec3; font-weight: bold; font-size: 13px; margin-bottom: 4px;">
+                                <div class="text-gray-600" style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">
                                     No Context Found
                                 </div>
-                                <div style="color: #636e72; font-size: 11px;">
+                                <div class="text-gray-500" style="font-size: 11px;">
                                     Read news to generate your knowledge map.
                                 </div>
                             </div>
@@ -68,12 +67,10 @@ window.DashboardData = {
                     return; 
                 }
                 
-                // [CASE B] 기사가 있는 경우 -> 사이드바 리스트 렌더링
+                // [CASE B] 사이드바 리스트 (다크 테마 유지)
                 let html = '';
                 articles.slice(0, 5).forEach(art => {
                     let dateDisplay = art.date ? art.date.substring(5, 10) : 'Recent';
-                    
-                    // [수정 완료] 클릭 시 모달이 아니라 '새 창'으로 이동
                     html += `
                         <div class="item" onclick="window.open('${art.url}', '_blank')" style="cursor: pointer;">
                             <div class="title">${art.title}</div>
@@ -83,18 +80,19 @@ window.DashboardData = {
                 });
                 container.innerHTML = html;
 
-                // [핵심] 가장 최신 기사 ID로 Bridge(Context Map) 로딩 시작
+                // [핵심] 가장 최신 기사 ID로 Bridge 로딩 시작
                 if (articles.length > 0) {
                     this.loadEmbeddedBridge(articles[0].id);
                 }
             })
             .catch(err => {
-                console.warn("Recent News Error:", err);
+                // console.warn("Recent News Error:", err);
                 if (bridgeLoading) bridgeLoading.innerHTML = "Failed to load data.";
             });
     },
 
     // 4. Librarian 데이터 로드 (Time Capsule + Recommendations)
+    // 4. Librarian 데이터 로드 (Time Capsule) - [제목 undefined 수정 & 디자인 개선]
     loadLibrarianData: function() {
         // (1) Time Capsule
         fetch(`/api/news/rag/review/?region=${this.region}`)
@@ -104,33 +102,50 @@ window.DashboardData = {
                 if(!container) return;
                 
                 if (data.message) {
-                    container.innerHTML = `<p style="text-align:center; color:#636e72; padding: 20px;">${data.message}</p>`;
+                    container.innerHTML = `<p style="text-align:center; padding: 20px;" class="text-gray-500 italic">${data.message}</p>`;
                     return;
                 }
                 
-                const targetId = data.article ? data.article.id : null;
-                const targetUrl = data.article ? data.article.url : data.url;
-                // Time Capsule은 클릭 시 모달 띄우기 (리뷰니까 상세히 보기 위함)
+                // [Undefined 해결] 데이터 구조가 { article: {...} } 인지 { title: ... } 인지 모두 대응
+                const article = data.article || data; 
+                const title = article.title || "Untitled Article"; 
+                const targetId = article.id || null;
+                const targetUrl = article.url || "#";
+                
                 const clickAction = targetId ? `DashboardUI.openModal(${targetId}, '${targetUrl}')` : `window.open('${targetUrl}', '_blank')`;
 
                 container.innerHTML = `
-                    <div style="font-size:12px; color:#55efc4; margin-bottom:5px; font-weight:bold;">
-                        ${this.textPack.reviewTitle} ${data.date || ""}
+                    <div class="flex justify-between items-end mb-3 border-b border-gray-200 pb-2">
+                        <span class="text-xs font-bold text-red-800 tracking-widest uppercase flex items-center gap-1">
+                            <span>📜</span> ${this.textPack.reviewTitle}
+                        </span>
+                        <span class="text-[10px] text-gray-400 font-serif-title italic">
+                            ${data.date || "Memory"}
+                        </span>
                     </div>
-                    <div style="font-size:16px; font-weight:bold; color:#fff; margin-bottom:15px; line-height: 1.4;">
-                        ${data.title}
+                    
+                    <div class="mb-4">
+                        <h3 class="text-lg md:text-xl font-black text-gray-900 leading-snug font-serif-title mb-2 hover:text-red-800 cursor-pointer transition" onclick="${clickAction}">
+                            "${title}"
+                        </h3>
                     </div>
-                    <div class="ai-comment" style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; color:#dfe6e9; font-style:italic; border-left: 3px solid #55efc4;">
-                        "${data.comment.replace(/\n/g, '<br>')}"
+
+                    <div class="bg-gray-50 p-3 border-l-4 border-red-800 rounded-r-md mb-3">
+                        <p class="text-xs md:text-sm text-gray-700 italic font-medium leading-relaxed">
+                            "${data.comment ? data.comment.replace(/\n/g, '<br>') : 'No comment'}"
+                        </p>
                     </div>
-                    <button class="btn-link" style="margin-top:15px; width:100%; text-align:center; background:none; border:none; color:#74b9ff; cursor:pointer; font-weight:bold;" onclick="${clickAction}">
-                        ${this.textPack.readButton} →
+
+                    <button class="w-full text-center py-2 text-xs font-bold uppercase tracking-widest text-blue-800 hover:text-red-800 hover:underline transition" onclick="${clickAction}">
+                        ${this.textPack.readButton} &rarr;
                     </button>
                 `;
             })
-            .catch(err => console.log("Librarian sleeping..."));
+            .catch(err => {
+                console.error("Librarian Error:", err);
+            });
 
-        // (2) Recommendations (External / Vector)
+        // (2) Recommendations (이하는 동일)
         fetch(`/api/news/rag/external/?region=${this.region}`)
             .then(res => res.json())
             .then(data => {
@@ -138,19 +153,16 @@ window.DashboardData = {
                 this.renderSearchRecs(data.search_recommendations || {});
             })
             .catch(err => {
-                console.error(err);
                 const container = document.getElementById('external-list');
-                if (container) container.innerHTML = `<div style="color:#ff7675; text-align:center;">Failed to connect.</div>`;
+                if (container) container.innerHTML = `<div style="color:#e74c3c; text-align:center;">Failed to connect.</div>`;
             });
     },
 
+
+        // 5. [Embedded] 대시보드 삽입용 Bridge 로더
     // 5. [Embedded] 대시보드 삽입용 Bridge 로더
     loadEmbeddedBridge: function(articleId) {
-        // [안전장치] ID가 없으면 중단 (404 방지)
-        if (!articleId) {
-            console.error("❌ [Bridge] Article ID is missing/undefined.");
-            return;
-        }
+        if (!articleId) return;
 
         const section = document.getElementById('section-bridge-dashboard');
         const loadingState = document.getElementById('bridge-loading-state');
@@ -162,14 +174,12 @@ window.DashboardData = {
         
         if (!section) return;
 
-        // 로딩 상태 표시
         if (loadingState) {
             loadingState.style.display = 'block';
             loadingState.innerHTML = '<div class="loading-text" style="font-size: 13px;">Analyzing context connections...</div>';
         }
         if (contentBox) contentBox.style.display = 'none';
 
-        // API 호출
         fetch(`/api/news/articles/${articleId}/bridge/?region=${this.region}`)
             .then(res => res.json())
             .then(data => {
@@ -180,11 +190,11 @@ window.DashboardData = {
                         loadingState.innerHTML = `
                             <div style="padding: 10px 0;">
                                 <div style="font-size: 20px; margin-bottom: 8px;">📭</div>
-                                <div style="color: #b2bec3; font-weight: bold; font-size: 13px; margin-bottom: 4px;">
+                                <div class="text-gray-600" style="font-weight: bold; font-size: 13px; margin-bottom: 4px;">
                                     No Context Found
                                 </div>
-                                <div style="color: #636e72; font-size: 11px;">
-                                    Try reading more articles to build a knowledge graph.
+                                <div class="text-gray-500" style="font-size: 11px;">
+                                    Try reading more articles.
                                 </div>
                             </div>
                         `;
@@ -192,36 +202,42 @@ window.DashboardData = {
                     return;
                 }
 
-                // 데이터 있음 -> 렌더링
                 if (loadingState) loadingState.style.display = 'none';
-                if (contentBox) contentBox.style.display = 'block';
+                
+                // [수정 1] 레이아웃 변경 (Grid 1단 강제 적용 -> 위/아래 배치)
+                if (contentBox) {
+                    contentBox.style.display = 'grid';
+                    contentBox.classList.remove('md:grid-cols-2'); // 기존 2단 제거
+                    contentBox.classList.add('grid-cols-1');      // 1단 적용
+                    contentBox.style.gap = '24px';                  // 간격 넓힘
+                }
 
                 if (data.anchor && anchorLabel) {
-                    anchorLabel.innerText = `Connected to: "${data.anchor.title}"`;
+                    anchorLabel.innerText = `Source: "${data.anchor.title.substring(0, 30)}..."`;
                 }
 
                 if (data.slot_a) {
                     this.fillBridgeCard(slotA, data.slot_a);
+                    // [수정 2] 색깔 바 제거 (회색 테두리로 덮어쓰기)
+                    slotA.style.borderLeft = '1px solid #e5e7eb';
+                    slotA.style.borderRight = '1px solid #e5e7eb'; // 균형을 위해 양쪽 동일하게
                 } else {
                     if(slotA) slotA.style.display = 'none';
                 }
 
                 if (data.slot_b) {
                     this.fillBridgeCard(slotB, data.slot_b);
+                    // [수정 2] 색깔 바 제거 (회색 테두리로 덮어쓰기)
+                    slotB.style.borderLeft = '1px solid #e5e7eb';
+                    slotB.style.borderRight = '1px solid #e5e7eb';
                 } else {
                     if(slotB) slotB.style.display = 'none';
                 }
             })
             .catch(err => {
-                console.error("[Bridge] Error:", err);
                 if (loadingState) {
                     loadingState.style.display = 'block';
-                    loadingState.innerHTML = `
-                        <div style="color: #ff7675; font-size: 12px; padding: 10px;">
-                            ⚠️ Failed to load context.<br>
-                            <span style="font-size:10px; opacity:0.8;">Server connection error.</span>
-                        </div>
-                    `;
+                    loadingState.innerHTML = `<div style="color: #e74c3c; font-size: 12px; padding: 10px;">⚠️ Connection Error</div>`;
                 }
             });
     },
@@ -231,6 +247,8 @@ window.DashboardData = {
         if (!element || !data) return;
         const article = data.article;
         const matches = data.matches || [];
+        
+        // [수정] span 태그에 인라인 스타일 제거 -> CSS가 처리함
         const keywordsHtml = matches.map(k => `<span>#${k}</span>`).join('');
         
         element.querySelector('.bridge-keywords').innerHTML = keywordsHtml;
@@ -310,51 +328,85 @@ window.DashboardData = {
 
     // 7. [Common] 일반 카드 HTML 생성 (My Taste / Discovery)
     createCardHTML: function(item, type) {
-        const title = (item.title || "No Title").replace(/<[^>]*>?/gm, '');
-        const summary = item.summary || "No description.";
-        const link = item.url || "#";
-        const thumbnail = item.thumbnail || ""; 
+        // [Undefined 해결] 제목 및 데이터 안전 추출
+        // item 안에 article 객체가 있을 수도 있고, item 자체가 기사일 수도 있음
+        const rawTitle = item.title || (item.article ? item.article.title : "No Title");
+        const title = rawTitle.replace(/<[^>]*>?/gm, ''); // 태그 제거
+        
+        const summary = item.summary || (item.article ? item.article.summary : "No description available.");
+        const link = item.url || (item.article ? item.article.url : "#");
+        const thumbnail = item.thumbnail || (item.article ? item.article.thumbnail : "");
         const date = item.date || "";
-        const source = item.source || "Web";
-        const reasonTag = item.reason_tag || "";
-        const reasonDesc = item.reason_desc || "";
+        
+        // 소스 (예: MY LIBRARY, BBC, CNN...)
+        const source = item.source || "WEB"; 
 
-        let badgeClass = (type === 'vector') ? "badge-vector" : "badge-search";
-        let metaRight = (type === 'vector' && item.similarity) 
-            ? `<span class="lib-meta-text" style="color:#a29bfe;">${item.similarity}% Match</span>`
-            : `<span class="lib-meta-text">${date}</span>`;
+        // 추천 이유 (Vector Only)
+        const reasonTag = item.reason_tag || "RECOMMEND";
+        const reasonDesc = item.reason_desc || "Relevant to your interests";
+        const similarity = item.similarity ? Math.round(item.similarity) : null;
 
-        let reasonHtml = "";
+        // [디자인 1] 우측 상단 메타데이터 (유사도 or 날짜)
+        let metaRight = "";
+        if (type === 'vector' && similarity) {
+            // 유사도: 보라색 강조 박스
+            metaRight = `
+                <span class="flex items-center justify-center px-2 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-bold shadow-sm">
+                    ${similarity}% Match
+                </span>`;
+        } else {
+            // 날짜: 회색 텍스트
+            metaRight = `<span class="text-[10px] text-gray-400">${date}</span>`;
+        }
+
+        // [디자인 2] 추천 이유 행 (Deep Dive 등)
+        let reasonRow = "";
         if (type === 'vector' && reasonTag) {
-            reasonHtml = `
-                <div style="font-size:11px; color:#a29bfe; margin-bottom:4px; font-weight:600; display:flex; align-items:center; gap:6px;">
-                    <span style="background:rgba(162,155,254,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(162,155,254,0.2);">${reasonTag}</span>
-                    <span style="color:#b2bec3; font-weight:400; font-size:11px;">${reasonDesc}</span>
+            reasonRow = `
+                <div class="flex items-center gap-2 mb-2 mt-1">
+                    <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-red-50 text-red-700 border border-red-100">
+                        🎯 ${reasonTag}
+                    </span>
+                    <span class="text-[10px] text-gray-400 truncate leading-none pt-0.5">
+                        ${reasonDesc}
+                    </span>
                 </div>
             `;
         }
 
+        // [디자인 3] 썸네일 처리
         const imgHtml = thumbnail 
-            ? `<img src="${thumbnail}" class="lib-card-thumb" onerror="this.parentNode.innerHTML='<div class=\'lib-card-no-img\'>📰</div>'">`
-            : `<div class="lib-card-no-img">📰</div>`;
+            ? `<img src="${thumbnail}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center bg-gray-100 text-xl\'>📰</div>'">`
+            : `<div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-300 text-xl">📰</div>`;
 
         const clickAction = `window.open('${link}', '_blank')`;
 
+        // [최종 HTML 레이아웃]
         return `
-            <div class="lib-card" onclick="${clickAction}">
-                <div class="lib-card-thumb-box">
+            <div class="group relative flex gap-4 p-3 bg-white border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:border-gray-300 transition-all cursor-pointer rounded-lg mb-3" onclick="${clickAction}">
+                
+                <div class="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden border border-gray-100 relative">
                     ${imgHtml}
                 </div>
-                <div class="lib-card-body">
-                    ${reasonHtml}
-                    <div>
-                        <div class="lib-card-meta">
-                            <span class="lib-badge ${badgeClass}">${source}</span>
-                            ${metaRight}
-                        </div>
-                        <div class="lib-card-title">${title}</div>
+
+                <div class="flex-1 min-w-0 flex flex-col">
+                    
+                    <div class="flex justify-between items-start">
+                        <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 self-start">
+                            ${source}
+                        </span>
+                        ${metaRight}
                     </div>
-                    <div class="lib-card-desc">${summary}</div>
+
+                    ${reasonRow}
+
+                    <h4 class="text-sm md:text-[15px] font-bold text-gray-900 leading-snug group-hover:text-red-800 transition line-clamp-2 mt-1 mb-1">
+                        ${title}
+                    </h4>
+
+                    <p class="text-xs text-gray-500 line-clamp-1 hidden md:block">
+                        ${summary}
+                    </p>
                 </div>
             </div>
         `;
