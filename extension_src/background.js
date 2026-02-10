@@ -26,6 +26,8 @@ const NEWS_DOMAINS = [
 
     // [Korea - Portal & Aggregator]
     "news.naver.com", 
+    "m.sports.naver.com",
+    "m.entertain.naver.com",
     "v.daum.net",
     "news.google.com", // 구글 뉴스 추가
 
