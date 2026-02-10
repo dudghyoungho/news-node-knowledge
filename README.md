@@ -12,8 +12,10 @@
   <br />
   <br />
 
-  <img src="./extension/icon128.png" alt="Logo" width="100" height="100">
+  <img src="https://github.com/user-attachments/assets/1293b1fe-9b95-4c92-b51b-78d509dbeff5" alt="Logo" width="100" height="100">
 
+
+  
   <h3 align="center">News Node Knowledge</h3>
 
   <p align="center">
