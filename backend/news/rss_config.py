@@ -149,4 +149,18 @@ RSS_FEEDS = [
         'region': Article.Region.KR,
         'category_base': 'General' # 주제가 다양하므로 General -> AI가 재분류
     },
-]
+    {
+        'name': 'Google News - Analysis (심층)',
+        # "심층" 검색: 
+        'url': 'https://news.google.com/rss/search?q=%EC%8B%AC%EC%B8%B5&hl=ko&gl=KR&ceid=KR%3Ako',
+        'region': Article.Region.KR,
+        'category_base': 'General' # 주제가 다양하므로 General -> AI가 재분류
+    },
+    {
+        'name': 'Google News - Analysis (칼럼)',
+        # "심층" 검색: 
+        'url': 'https://news.google.com/rss/search?q=%EC%B9%BC%EB%9F%BC&hl=ko&gl=KR&ceid=KR%3Ako',
+        'region': Article.Region.KR,
+        'category_base': 'General' # 주제가 다양하므로 General -> AI가 재분류
+    },
+]   
