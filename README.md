@@ -92,8 +92,7 @@ Forget the boring list view. Your dashboard is a customized **Classic Newspaper 
 
 ### 2. Interactive Knowledge Graph
 *Visualizes your reading history. Notice the Category Clusters (Blue), Semantic Context Links (Red dashed), and Shared Entity Links (Green dashed with #tags).*
-<img width="1280" alt="Knowledge Graph Visualization" src="<img width="1570" height="1127" alt="image" src="https://github.com/user-attachments/assets/7bcfaeea-103f-47d2-86c9-e2fee97f12ba" />
-" />
+<img width="1280" alt="Knowledge Graph Visualization" src="https://github.com/user-attachments/assets/7bcfaeea-103f-47d2-86c9-e2fee97f12ba" />
 
 ### 3. The AI Librarian Dashboard (Newspaper Theme)
 *Your personalized daily newspaper. Features the Knowledge Time Capsule, Taste Stream, and newly discovered topics based on your reading vector.*
@@ -101,8 +100,7 @@ Forget the boring list view. Your dashboard is a customized **Classic Newspaper 
 
 ### 4. Knowledge Context Bridge
 *Tracing the lineage of a story. The modal connects the initial "Origin" of an event directly to its current "Verdict" or expert analysis.*
-<img width="1280" alt="Knowledge Bridge Modal" src="<img width="1278" height="1127" alt="image" src="https://github.com/user-attachments/assets/10115e26-d249-4007-baf1-651a23d41632" />
-" />
+<img width="1280" alt="Knowledge Bridge Modal" src="https://github.com/user-attachments/assets/10115e26-d249-4007-baf1-651a23d41632" />
 
 ---
 
