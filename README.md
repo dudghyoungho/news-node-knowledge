@@ -60,42 +60,47 @@ By seamlessly integrating a Chrome Extension with a powerful Django/pgvector bac
 
 ## ✨ Core Features & Workflow
 
-### 1. ⚡ 1-Click AI Summarization (Chrome Extension)
+### 1. 1-Click AI Summarization (Chrome Extension)
 Experience frictionless knowledge gathering right from your browser.
 * **Instant 3-Line Summaries:** Utilizes OpenAI's GPT models to instantly distill long, complex articles into 3 key bullet points.
 * **Frictionless Archiving:** With a single click, metadata (original URL, thumbnails, categories) and AI summaries are securely transmitted and saved to your personal backend database.
 
-### 2. 📚 Personal Knowledge Archive (My Library)
+### 2. Personal Knowledge Archive (My Library)
 Your private, permanent database for all consumed information.
 * **Reading Log Management:** Automatically tracks what you've read, categorized by topics and reading status.
 * **Permanent Summaries:** Keeps your summarized content safely archived, ensuring you never lose access to crucial information even if the original article is deleted or paywalled.
 
-### 3. 🕸️ Interactive Knowledge Graph
+### 3. Interactive Knowledge Graph
 
 A dynamic, visual map that reveals how your saved articles are interconnected, moving beyond simple list views.
 * **Category Clusters (Blue Lines):** Groups articles into intuitive clusters based on their primary topics (e.g., Tech, Economy).
 * **Semantic Context Links (Red Dashed Lines):** Powered by `pgvector`, it calculates cosine similarity between text embeddings. Articles with a highly matched context (>85% similarity) are connected, revealing hidden relationships across different categories.
 * **Shared Entity Links (Green Dashed Lines):** Using NLP Named Entity Recognition (NER), it connects articles sharing multiple key entities (e.g., `#OpenAI`, `#SamAltman`), explicitly showing the intersection of events.
 
-### 4. 📰 The AI Librarian (Personalized Dashboard)
+### 4. The AI Librarian (Personalized Dashboard)
 Forget the boring list view. Your dashboard is a customized **Classic Newspaper Layout** tailored daily by an AI Librarian.
 * **Knowledge Time Capsule:** Resurfaces meaningful past reads to reinforce your memory and connect past events to present contexts.
 * **Context Bridge (Origin-Verdict):** Places the initial "Spark" (Origin) of an issue side-by-side with its current status (Verdict), helping you grasp the full, multi-dimensional storyline.
 * **Taste Stream & Discovery:** Analyzes your cumulative reading vectors to curate deep-dive recommendations matching your interests, while also suggesting "Discovery" keywords to broaden your horizons.
 ---
 
-## 📸 Demo
+## Demo
 
-### 1. The AI Librarian Dashboard (Newspaper Theme)
-*A personalized daily newspaper generated from your reading history.*
-<img width="1280" alt="Librarian View" src="https://github.com/user-attachments/assets/39102d5c-9608-43c2-a216-cc8abb6d6719" />
+### 1. 1-Click AI Summarization (Chrome Extension)
+*Instantly extracts 3-line summaries, keywords, and named entities (NER) from any news article while browsing.*
+<img width="1280" alt="Chrome Extension Popup" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
 
-### 2. Knowledge Bridge Modal
-*Tracing the lineage of a story from Origin to Verdict.
+### 2. Interactive Knowledge Graph
+*Visualizes your reading history. Notice the Category Clusters (Blue), Semantic Context Links (Red dashed), and Shared Entity Links (Green dashed with #tags).*
+<img width="1280" alt="Knowledge Graph Visualization" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_GRAPH_IMAGE" />
 
-### 3. Extension Popup
-*Instant summarization and entity extraction.*
-<img width="1280" alt="Extension" src="https://github.com/user-attachments/assets/14c9e99b-76cf-40e9-8eaa-5d95871fcaaf" />
+### 3. The AI Librarian Dashboard (Newspaper Theme)
+*Your personalized daily newspaper. Features the Knowledge Time Capsule, Taste Stream, and newly discovered topics based on your reading vector.*
+<img width="1280" alt="Librarian Dashboard View" src="https://github.com/user-attachments/assets/39102d5c-9608-43c2-a216-cc8abb6d6719" />
+
+### 4. Knowledge Context Bridge
+*Tracing the lineage of a story. The modal connects the initial "Origin" of an event directly to its current "Verdict" or expert analysis.*
+<img width="1280" alt="Knowledge Bridge Modal" src="https://github.com/user-attachments/assets/PLACEHOLDER_FOR_BRIDGE_MODAL" />
 
 ---
 
