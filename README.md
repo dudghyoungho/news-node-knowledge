@@ -52,30 +52,36 @@
 
 > **"Turn fleeting news into permanent knowledge."**
 
-**News Node Knowledge** is not just a bookmarking tool—it is your personal **AI Librarian**. By combining a Chrome Extension with a powerful Django backend, it transforms how you consume, organize, and recall digital information.
+**News Node Knowledge** is a comprehensive AI-powered knowledge management platform. It is not just a bookmarking tool—it is your personal **AI Librarian**. 
 
-It goes beyond simple summarization by creating a **Knowledge Graph** of your reading history, connecting related events, and presenting them in a curated **Newspaper Layout** tailored specifically to your interests.
+By seamlessly integrating a Chrome Extension with a powerful Django/pgvector backend, this platform transforms your daily fragmented news consumption into a permanent, interconnected, and visually mapped knowledge asset. It guides users through a complete cycle of learning: **Instant Summarization ➔ Secure Archiving ➔ Visual Connection ➔ AI Recommendation.**
 
 ---
 
-## ✨ New Features (v1.5.0)
+## ✨ Core Features & Workflow
 
-### 1. 📰 The AI Librarian (Newspaper View)
-Forget the boring list view. The dashboard now features a **Classic Newspaper Layout** powered by **Tailwind CSS**.
-* **Time Capsule**: Revisit past articles with a "On this day" style memory card.
-* **Taste Stream**: AI-curated recommendations based on your reading vector depth.
-* **Discovery**: Automatically finds new topics and keywords you might be interested in.
+### 1. ⚡ 1-Click AI Summarization (Chrome Extension)
+Experience frictionless knowledge gathering right from your browser.
+* **Instant 3-Line Summaries:** Utilizes OpenAI's GPT models to instantly distill long, complex articles into 3 key bullet points.
+* **Frictionless Archiving:** With a single click, metadata (original URL, thumbnails, categories) and AI summaries are securely transmitted and saved to your personal backend database.
 
-### 2. 🌉 Knowledge Context Map (The Bridge)
-Understanding the *context* is as important as the news itself.
-* **Origin (Top)**: Shows the "Spark" or the initial event that caused the news.
-* **Verdict (Bottom)**: Shows the current status or expert analysis.
-* **Connection**: Visualizes the lineage between articles to help you see the bigger picture.
+### 2. 📚 Personal Knowledge Archive (My Library)
+Your private, permanent database for all consumed information.
+* **Reading Log Management:** Automatically tracks what you've read, categorized by topics and reading status.
+* **Permanent Summaries:** Keeps your summarized content safely archived, ensuring you never lose access to crucial information even if the original article is deleted or paywalled.
 
-### 3. 🧠 Enhanced NER (Named Entity Recognition)
-* Automatically extracts **People (PERSON)**, **Organizations (ORG)**, and **Locations (LOC)** from articles during crawling.
-* Builds a richer database for precise searching and filtering.
+### 3. 🕸️ Interactive Knowledge Graph
 
+A dynamic, visual map that reveals how your saved articles are interconnected, moving beyond simple list views.
+* **Category Clusters (Blue Lines):** Groups articles into intuitive clusters based on their primary topics (e.g., Tech, Economy).
+* **Semantic Context Links (Red Dashed Lines):** Powered by `pgvector`, it calculates cosine similarity between text embeddings. Articles with a highly matched context (>85% similarity) are connected, revealing hidden relationships across different categories.
+* **Shared Entity Links (Green Dashed Lines):** Using NLP Named Entity Recognition (NER), it connects articles sharing multiple key entities (e.g., `#OpenAI`, `#SamAltman`), explicitly showing the intersection of events.
+
+### 4. 📰 The AI Librarian (Personalized Dashboard)
+Forget the boring list view. Your dashboard is a customized **Classic Newspaper Layout** tailored daily by an AI Librarian.
+* **Knowledge Time Capsule:** Resurfaces meaningful past reads to reinforce your memory and connect past events to present contexts.
+* **Context Bridge (Origin-Verdict):** Places the initial "Spark" (Origin) of an issue side-by-side with its current status (Verdict), helping you grasp the full, multi-dimensional storyline.
+* **Taste Stream & Discovery:** Analyzes your cumulative reading vectors to curate deep-dive recommendations matching your interests, while also suggesting "Discovery" keywords to broaden your horizons.
 ---
 
 ## 📸 Demo
