@@ -84,7 +84,7 @@ def get_knowledge_graph(request):
                 pair_shared_entities[pair].append(entity_name)
 
     # 🚨 거미줄 방지 기준점: 최소 2개 이상의 키워드가 겹쳐야만 선을 긋습니다!
-    MIN_SHARED_ENTITIES = 2 
+    MIN_SHARED_ENTITIES = 2
 
     for (art_A, art_B), shared_ents in pair_shared_entities.items():
         if len(shared_ents) >= MIN_SHARED_ENTITIES:
