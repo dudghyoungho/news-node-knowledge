@@ -89,8 +89,8 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
     ).order_by('distance').first()
 
     # [기준] 배경 지식은 관련성이 조금 낮아도 허용 (0.75)
-    if not target or target.distance > 0.65:
-        return None
+    if not target or target.distance is None or target.distance > 0.65:
+        return None  # 또는 적절한 처리
 
     # [AI 프롬프트 다국어 처리]
     if region == 'KR':
@@ -148,7 +148,7 @@ def get_slot_b_verdict(user, anchor, region, combined_user_ids, exclude_ids):
 
     # [핵심 수정] 검증(Verdict)은 관련성이 높아야 함. 
     # 거리가 0.65보다 멀면(관련성 낮음) 차라리 안 보여주는 게 나음.
-    if not target or target.distance > 0.65: 
+    if not target or target.distance is None or target.distance > 0.65: 
         return None
 
     # [AI 프롬프트 다국어 처리]

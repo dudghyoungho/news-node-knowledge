@@ -16,11 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.http import HttpResponse # 추가
+from django.shortcuts import render # 추가
 
 # 간단한 메인 페이지 뷰 함수
 def home(request):
-    return HttpResponse("🚀 Journal Journey 서버가 정상 작동 중입니다!")
+    # templates/landing.html 파일을 렌더링해서 보여줌
+    return render(request, 'news/landing.html')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

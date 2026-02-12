@@ -33,12 +33,40 @@
         }
 
         #login-section { text-align: center; padding-top: 10px; }
+        
         #btn-google-login { 
             background-color: #4285F4; color: white; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         #btn-google-login:hover { background-color: #357ae8; }
-        .login-desc { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.5; }
+
+        /* --- [추가됨] 데모 버튼 스타일 --- */
+        #btn-demo-login {
+            background-color: #4F46E5; /* Indigo color */
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #btn-demo-login:hover { background-color: #4338ca; }
+
+        /* --- [추가됨] 구분선 스타일 --- */
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 12px 0;
+            color: #aaa;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #eee;
+        }
+        .divider::before { margin-right: 10px; }
+        .divider::after { margin-left: 10px; }
+
+        .login-desc { font-size: 13px; color: #666; margin-bottom: 15px; line-height: 1.5; }
 
         #summary-box {
             background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
@@ -62,7 +90,7 @@
         .footer-link { display: block; text-align: right; font-size: 11px; color: #aaa; text-decoration: none; margin-top: 8px; }
         .footer-link:hover { color: #666; }
 
-        /* --- [추가됨] 토글 스위치 CSS --- */
+        /* 토글 스위치 CSS */
         .settings-box {
             margin-top: 15px;
             padding-top: 10px;
@@ -85,20 +113,17 @@
             margin: 0;
             line-height: 1.3;
         }
-        /* The switch - the box around the slider */
         .switch {
             position: relative;
             display: inline-block;
             width: 34px;
             height: 20px;
         }
-        /* Hide default HTML checkbox */
         .switch input {
             opacity: 0;
             width: 0;
             height: 0;
         }
-        /* The slider */
         .slider {
             position: absolute;
             cursor: pointer;
@@ -143,6 +168,7 @@
             Login is required<br>
             to summarize and save articles.
         </p>
+        
         <button id="btn-google-login">
             <svg width="18" height="18" viewBox="0 0 18 18">
                 <path fill="#fff" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
@@ -151,6 +177,12 @@
                 <path fill="#fff" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
             </svg>
             Start with Google Account
+        </button>
+
+        <div class="divider">OR</div>
+
+        <button id="btn-demo-login">
+            🚀 Try Demo Mode (Guest)
         </button>
     </div>
 

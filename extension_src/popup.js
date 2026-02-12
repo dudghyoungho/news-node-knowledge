@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Buttons
     const btnGoogle = document.getElementById('btn-google-login');
+    const btnDemoLogin = document.getElementById('btn-demo-login'); // [추가됨]
     const btnLogout = document.getElementById('btn-logout');
     const btnSummarize = document.getElementById('btn-summarize');
     const btnSave = document.getElementById('btn-save');
@@ -24,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const regionSelector = document.getElementById('region-selector');
     const summaryBox = document.getElementById('summary-box');
     const statusMsg = document.getElementById('status');
-    const toggleTracking = document.getElementById('toggle-tracking'); // [New] Tracking Toggle
+    const toggleTracking = document.getElementById('toggle-tracking');
 
     // State Variables
     let userToken = null;
@@ -41,9 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(regionSelector) regionSelector.value = currentRegion;
         }
 
-        // 2-2. Load Tracking Setting (Default: false is safer for review, but let's assume true if undefined for UX)
-        // 심사를 위해서는 기본값 false가 안전하지만, 사용자 경험상 최초 1회는 켜져있거나 팝업으로 물어보는 게 좋습니다.
-        // 여기서는 저장된 값이 없으면 true(켜짐)로 설정합니다.
+        // 2-2. Load Tracking Setting
         const isTrackingEnabled = result.enableTracking !== false; 
         if(toggleTracking) toggleTracking.checked = isTrackingEnabled;
 
@@ -66,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentRegion = e.target.value;
             chrome.storage.local.set({ 'region': currentRegion }, () => {
                 if (!mainSection.classList.contains('hidden')) {
-                    // Reset UI to encourage re-summarization with new region
                     summaryBox.textContent = `Region switched to ${currentRegion}.\nClick button to summarize.`;
                     btnSummarize.classList.remove('hidden');
                     btnSave.classList.add('hidden');
@@ -80,8 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleTracking.addEventListener('change', (e) => {
             const isEnabled = e.target.checked;
             chrome.storage.local.set({ 'enableTracking': isEnabled }, () => {
-                console.log(`[Popup] Tracking set to: ${isEnabled}`);
-                // (선택사항) 상태 메시지로 알려줌
                 statusMsg.textContent = isEnabled ? "Context learning enabled." : "Context learning disabled.";
                 setTimeout(() => { statusMsg.textContent = ""; }, 1500);
             });
@@ -95,6 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if(loginSection) loginSection.classList.remove('hidden');
         if(mainSection) mainSection.classList.add('hidden');
         if(statusMsg) statusMsg.textContent = "";
+        
+        // 데모 버튼 상태 초기화
+        if(btnDemoLogin) {
+            btnDemoLogin.textContent = "🚀 Try Demo Mode (Guest)";
+            btnDemoLogin.disabled = false;
+        }
     }
 
     function showMainSection() {
@@ -119,6 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------------------
     // 5. Auth Logic (Login / Logout)
     // ----------------------------------------------------------------
+    
+    // [Google Login]
     if(btnGoogle) {
         btnGoogle.addEventListener('click', () => {
             statusMsg.textContent = "Authenticating...";
@@ -138,10 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ access_token: token })
                 })
-                .then(res => {
-                    if (!res.ok) throw new Error("Server error");
-                    return res.json();
-                })
+                .then(res => res.json())
                 .then(data => {
                     if (data.token) {
                         userToken = data.token;
@@ -160,6 +161,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // [NEW] Demo Login Logic (여기에 추가됨)
+    if (btnDemoLogin) {
+        btnDemoLogin.addEventListener('click', async () => {
+            // UI Update
+            const originalText = btnDemoLogin.textContent;
+            btnDemoLogin.textContent = "Connecting...";
+            btnDemoLogin.disabled = true;
+            statusMsg.textContent = "Entering Demo Mode...";
+
+            try {
+                // 1. Call Backend Demo API
+                const response = await fetch(`${SERVER_URL}/api/news/auth/demo/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token) {
+                    // 2. Save Token (Same key 'api_token' as Google Login)
+                    userToken = data.token;
+                    chrome.storage.local.set({ 
+                        'api_token': userToken,
+                        'username': data.username // Optional: if you want to display name
+                    }, () => {
+                        console.log("✅ Demo Token Saved");
+                        showMainSection();
+                        statusMsg.textContent = `Welcome, ${data.username}!`;
+                    });
+                } else {
+                    throw new Error(data.message || "Demo login failed");
+                }
+            } catch (error) {
+                console.error("Demo Login Error:", error);
+                statusMsg.textContent = "Error: " + error.message;
+                btnDemoLogin.textContent = originalText;
+                btnDemoLogin.disabled = false;
+            }
+        });
+    }
+
+    // [Logout]
     if(btnLogout) {
         btnLogout.addEventListener('click', (e) => {
             e.preventDefault(); 
@@ -171,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------------------
-    // 6. Summarize Logic
+    // 6. Summarize Logic (기존 로직 그대로 사용 - 토큰만 있으면 됨)
     // ----------------------------------------------------------------
     if(btnSummarize) {
         btnSummarize.addEventListener('click', async () => {
@@ -180,12 +223,10 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMsg.textContent = "Processing...";
 
             try {
-                // Get active tab URL
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 if(!tab) throw new Error("No active tab found");
                 currentUrl = tab.url;
 
-                // API Call
                 const response = await fetch(`${SERVER_URL}/api/news/summarize/`, {
                     method: 'POST',
                     headers: { 
@@ -204,35 +245,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnLogout.click();
                         return;
                     }
-
                     const errData = await response.json();
-                    
-                    if (errData.status === 'ALREADY_SAVED') {
-                        summaryBox.textContent = `📚 Already saved.\n(Date: ${new Date().toLocaleDateString()})`;
-                        btnSummarize.textContent = "Already in Library";
-                        statusMsg.textContent = "";
-                        return;
+                    if (errData.is_saved) { // 백엔드 응답 키 확인 필요 (is_saved or status)
+                         summaryBox.textContent = `📚 Already saved.\nCheck your library.`;
+                         btnSummarize.textContent = "Already in Library";
+                         statusMsg.textContent = "";
+                         return;
                     }
-                    
                     throw new Error(errData.error || "Summarization failed");
                 }
 
                 // Streaming Response Handling
-                // (백엔드가 StreamingResponse인 경우)
-                summaryBox.textContent = ""; // Clear
+                summaryBox.textContent = ""; 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-                    
                     const chunk = decoder.decode(value);
                     summaryBox.textContent += chunk;
                     summaryBox.scrollTop = summaryBox.scrollHeight;
                 }
 
-                // Finish
                 btnSummarize.classList.add('hidden'); 
                 btnSave.classList.remove('hidden');   
                 statusMsg.textContent = "Summary generated.";
@@ -247,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------------------
-    // 7. Save Logic
+    // 7. Save Logic (기존 로직 그대로 사용)
     // ----------------------------------------------------------------
     if(btnSave) {
         btnSave.addEventListener('click', async () => {
@@ -292,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Login required.");
                 return;
             }
+            // 일반 대시보드로 이동 (데모 계정도 로그인이 되어 있으므로 정상 작동)
             const targetUrl = `${SERVER_URL}/api/news/dashboard/?token=${userToken}&region=${currentRegion}`;
             chrome.tabs.create({ url: targetUrl });
         });

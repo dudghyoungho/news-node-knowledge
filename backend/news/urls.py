@@ -38,4 +38,7 @@ urlpatterns = [
 
     # 6. 로그 관련 (log_views)
     path('logs/', log_views.LogCreateView.as_view(), name='log-create'),
+
+    # 7. Demo Login
+    path('auth/demo/', auth_views.demo_login, name='demo_login'),
 ]
