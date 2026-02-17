@@ -520,80 +520,45 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
         # 에러 나면 빈 배열 대신 랜덤 추천이라도 던짐 (Fallback)
         return recommend_random_recent(user, region, limit)
 
-# [Helper] 최신 기사 랜덤 추천 (Fallback용)
-def recommend_random_recent(user, region, limit=3):
-    """
-    [Fallback] 최신 기사 랜덤 추천
-    수정사항: 임베딩(embedding_pytorch)이 없어도 일단 보여줌. (빈 화면 방지)
-    """
-    # 1. 임베딩 있는 것 우선 검색
-    qs = Article.objects.filter(embedding_pytorch__isnull=False)
-    if region:
-        qs = qs.filter(region=region)
-    
-    candidates = list(qs.order_by('-created_at')[:50])
-    
-    # ---------------------------------------------------------
-    # [Fix] 임베딩 된 게 하나도 없으면? -> 임베딩 없는 거라도 가져옴
-    # ---------------------------------------------------------
-    if not candidates:
-        qs_backup = Article.objects.all()
-        if region:
-            qs_backup = qs_backup.filter(region=region)
-        
-        candidates = list(qs_backup.order_by('-created_at')[:20])
-
-    # 그래도 없으면 진짜 0개임
-    if not candidates:
-        return []
-        
-    picks = random.sample(candidates, min(len(candidates), limit))
-    
-    # 태그 달아주기
-    for p in picks:
-        # 임베딩이 없어서 distance 계산이 안 되므로 가짜 값(0.5) 부여
-        p.distance = 0.5 
-        p.reason_tag = "🆕 New Arrival"
-        p.reason_desc = "Fresh news for you"
-        
-    return format_results(picks)
-
-# [Helper] 결과 포맷팅 (기존과 동일)
 def format_results(article_list):
+    """ 최종 결과를 JSON 대응 딕셔너리 리스트로 변환 """
     results = []
     for article in article_list:
-        # distance 속성이 없으면 기본값 1.0 (유사도 0)
         dist = getattr(article, 'distance', 1.0)
         similarity_score = max(0, 1 - dist)
         
         raw_text = article.summary if article.summary else article.content
-        clean_text = clean_html(raw_text or "")
-        display_summary = clean_text[:150] + "..." if len(clean_text) > 150 else clean_text
+        display_summary = clean_html(raw_text)[:150] + "..." if raw_text else ""
         
-        safe_thumb = article.thumbnail_url if article.thumbnail_url else ""
-
         results.append({
             "id": article.id,
             "title": article.title,
             "summary": display_summary,
             "url": article.url,
-            "thumbnail": safe_thumb,
-            "date": article.created_at.strftime("%Y-%m-%d"),
+            "thumbnail": article.thumbnail_url or "",
+            "date": article.created_at.strftime("%Y-%m-%d") if article.created_at else "",
             "region": article.region,
             "similarity": round(similarity_score * 100, 1),
             "source": "My Library",
             "reason_tag": getattr(article, 'reason_tag', 'Recommended'),
             "reason_desc": getattr(article, 'reason_desc', '')
         })
-    
     return results
 
-# [Helper] HTML 태그 제거 (이미 있다면 생략 가능)
-def clean_html(raw_html):
-    import re
-    import html
-    if not raw_html:
-        return ""
-    cleanr = re.compile('<.*?>')
-    cleantext = re.sub(cleanr, '', raw_html)
-    return html.unescape(cleantext)
+def recommend_random_recent(user, region, limit=3):
+    """ [Fallback] 아무 기사나 뿌려서 빈 화면 방지 """
+    qs = Article.objects.all()
+    if region: qs = qs.filter(region=region)
+    
+    # 1. 임베딩 된 것 우선, 없으면 전체에서 최신순
+    candidates = list(qs.filter(embedding_pytorch__isnull=False).order_by('-created_at')[:50])
+    if not candidates:
+        candidates = list(qs.order_by('-created_at')[:20])
+
+    if not candidates: return []
+        
+    picks = random.sample(candidates, min(len(candidates), limit))
+    for p in picks:
+        p.distance = 0.5
+        p.reason_tag = "🆕 New Arrival"
+    return format_results(picks)
