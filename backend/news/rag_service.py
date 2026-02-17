@@ -360,141 +360,195 @@ def recommend_external_articles(user, region='KR'):
 # ---------------------------------------------------------
 def recommend_mixed_portfolio(user, region=None, limit=3):
     """
-    [Portfolio Recommendation v2]
-    1. Pool Extension: Search up to top 100 to increase chance of finding INSIGHT articles.
-    2. Insight Priority: Boost INSIGHT articles to Slot 1 even if similarity is slightly lower.
-    3. Strict De-duplication: Prevent duplicates across slots.
+    [Portfolio Recommendation v3 - Final Safe Version]
+    1. Cold Start 대응: 유저 벡터 없으면 최신 기사 추천
+    2. Hybrid Pool: (Vector Top 50) + (Random Recent 50) 혼합하여 필터버블 방지
+    3. Safety Net: 읽은 기사 제외 후 후보 없으면 포함해서 추천
     """
+    
+    # ---------------------------------------------------------
+    # [Case 1] 유저 벡터가 없는 경우 (완전 초기 사용자)
+    # ---------------------------------------------------------
     if not hasattr(user, 'profile') or user.profile.embedding_user is None:
-        return []
+        return recommend_random_recent(user, region, limit)
 
     user_vector = user.profile.embedding_user
-
+    
     try:
-        # [Step 1] Get URLs of articles I've already saved/viewed
-        my_saved_urls = Article.objects.filter(user=user).values_list('url', flat=True)
+        # [Step 1] 내가 이미 본 기사 목록 가져오기
+        viewed_ids = list(UserActionLog.objects.filter(
+            user=user, 
+            action__in=['read', 'star', 'save']
+        ).values_list('article_id', flat=True))
+        
+        # 제외할 ID 목록 (본 것 + 내가 쓴 것)
+        exclude_ids = viewed_ids + list(Article.objects.filter(user=user).values_list('id', flat=True))
 
-        # [Step 2] Build Candidates Pool - Expand to 100
-        candidates = Article.objects.annotate(
-            distance=CosineDistance('embedding_pytorch', user_vector)
-        ).exclude(
-            embedding_pytorch__isnull=True
-        ).exclude(
-            url__in=my_saved_urls # Exclude my saved articles
-        ).exclude(
-            user=user # Exclude articles I created
-        )
-
+        # [Step 2] 기본 쿼리셋 (임베딩 있는 것만)
+        base_qs = Article.objects.filter(embedding_pytorch__isnull=False)
         if region:
-            candidates = candidates.filter(region=region)
+            base_qs = base_qs.filter(region=region)
+
+        # ---------------------------------------------------------
+        # [Case 2] 읽은 거 빼니까 남는 게 없는 경우 (DB 기사 부족 방어)
+        # ---------------------------------------------------------
+        # 일단 제외하고 찾아봄
+        candidates_qs = base_qs.exclude(id__in=exclude_ids)
         
-        # ★ Fetch top 100 for diversity
-        pool = list(candidates.order_by('distance')[:100])
+        # 만약 남는 게 없으면? 필터 해제 (본 거라도 추천)
+        if not candidates_qs.exists():
+            candidates_qs = base_qs 
         
-        if not pool: return []
+        # 그래도 없으면? (DB가 진짜 텅 빔) -> 빈 배열 리턴 (어쩔 수 없음)
+        if not candidates_qs.exists():
+            return []
+
+        # ---------------------------------------------------------
+        # [Step 3] Group A: 취향 기반 (Vector Similarity Top 50)
+        # ---------------------------------------------------------
+        # 여기서 annotate로 distance를 계산해둠
+        group_a = list(candidates_qs.annotate(
+            distance=CosineDistance('embedding_pytorch', user_vector)
+        ).order_by('distance')[:50])
+
+        # ---------------------------------------------------------
+        # [Step 4] Group B: 다양성 기반 (Recent Random 50)
+        # ---------------------------------------------------------
+        # 최신순 100개 중 랜덤 50개 추출 (벡터 무관 -> 필터 버블 파괴)
+        recent_pool = list(base_qs.order_by('-created_at')[:100])
+        group_b = random.sample(recent_pool, min(len(recent_pool), 50))
+
+        # ---------------------------------------------------------
+        # [Step 5] Pool 병합 (중복 제거)
+        # ---------------------------------------------------------
+        # 딕셔너리로 병합 (ID 기준 중복 제거)
+        # Group B 아이템들은 distance가 없을 수 있으므로 처리 필요
+        pool_dict = {}
+        
+        # Group A 먼저 넣음 (distance 있음)
+        for a in group_a:
+            pool_dict[a.id] = a
+            
+        # Group B 넣음 (이미 있으면 패스, 없으면 distance 가짜 값 부여)
+        for b in group_b:
+            if b.id not in pool_dict:
+                # distance 속성이 없으면 0.5 (중간) 정도로 설정
+                if not hasattr(b, 'distance'):
+                    setattr(b, 'distance', 0.5) 
+                pool_dict[b.id] = b
+
+        # 최종 Pool 리스트
+        pool = list(pool_dict.values())
+
+        if not pool: 
+            return recommend_random_recent(user, region, limit)
 
         # ---------------------------------------------------
-        # 3. Slot Filling
+        # Slot Filling (슬롯 채우기)
         # ---------------------------------------------------
         final_selection = []
-        selected_ids = set() # For de-duplication
+        selected_ids = set()
 
-        # ===================================================
-        # [Slot 1] Deep Dive (Prioritize Insight)
-        # ===================================================
-        # Search for insight articles within the entire pool (100)
-        insight_candidates = [
-            a for a in pool 
-            if a.article_type in ['INSIGHT', 'OPINION', 'TUTORIAL']
-        ]
+        # [Slot 1] Deep Dive (Group A 우선)
+        # 취향에 맞으면서도 Insight/Opinion 기사를 최우선
+        candidates_s1 = [a for a in group_a if a.article_type in ['INSIGHT', 'OPINION', 'TUTORIAL']]
         
-        if insight_candidates:
-            # If insights exist, pick the one with highest similarity
-            pick = insight_candidates[0]
-            pick.reason_tag = "🎯 Deep Dive"
-            pick.reason_desc = "In-depth analysis of your interest"
+        if candidates_s1:
+            pick1 = candidates_s1[0]
+            pick1.reason_tag = "🎯 Deep Dive"
+        elif group_a:
+            pick1 = group_a[0]
+            pick1.reason_tag = "🔥 Top Pick"
         else:
-            # If no insight in top 100, pick the overall #1
-            pick = pool[0]
-            pick.reason_tag = "🔥 Top Pick"
-            pick.reason_desc = "Most relevant to your taste"
+             # Group A가 비었으면 pool 전체에서
+             pick1 = pool[0]
+             pick1.reason_tag = "🔥 Trending"
         
-        final_selection.append(pick)
-        selected_ids.add(pick.id)
+        final_selection.append(pick1)
+        selected_ids.add(pick1.id)
 
 
-        # ===================================================
-        # [Slot 2] Broaden View (Expand Category)
-        # ===================================================
-        target_category = pick.category
+        # [Slot 2] Broaden View (Category Extension)
+        # Slot 1과 같은 카테고리 기사 추천
+        target_category = pick1.category
+        candidates_s2 = [a for a in pool if a.category == target_category and a.id not in selected_ids]
         
-        # 1. Same category
-        # 2. Not already selected
-        slot2_candidates = [
-            a for a in pool 
-            if a.category == target_category and a.id not in selected_ids
-        ]
-        
-        if slot2_candidates:
-            # Pick random from top 10 to avoid always picking #1
-            range_limit = min(len(slot2_candidates), 10)
-            pick = random.choice(slot2_candidates[:range_limit]) 
-            
-            pick.reason_tag = f"📂 {target_category}"
-            pick.reason_desc = f"More from {target_category}"
+        if candidates_s2:
+            # 상위권만 뽑지 말고 랜덤성 부여
+            pick2 = random.choice(candidates_s2[:5]) 
+            pick2.reason_tag = f"📂 {target_category}"
         else:
-            # If no same category, pick the next best relevant one
+            # 없으면 차순위
             remain = [a for a in pool if a.id not in selected_ids]
             if remain:
-                pick = remain[0]
-                pick.reason_tag = "⚡ Trending"
-                pick.reason_desc = "Highly recommended for you"
+                # 거리순 정렬해서 가장 가까운 놈으로
+                remain.sort(key=lambda x: getattr(x, 'distance', 1.0))
+                pick2 = remain[0]
+                pick2.reason_tag = "⚡ Recommended"
             else:
                 return format_results(final_selection)
-
-        final_selection.append(pick)
-        selected_ids.add(pick.id)
-
-
-        # ===================================================
-        # [Slot 3] Serendipity (New Discovery)
-        # ===================================================
-        # 1. Different category from Slot 1
-        # 2. Not already selected
-        # 3. ★ Search from rank 10~100 to ensure diversity
         
-        slot3_candidates = [
-            a for a in pool[10:] 
+        final_selection.append(pick2)
+        selected_ids.add(pick2.id)
+
+
+        # [Slot 3] Serendipity (Discovery)
+        # ★ 핵심: Group B(랜덤 풀)에서 우선적으로 찾음
+        candidates_s3 = [
+            a for a in group_b 
             if a.id not in selected_ids and a.category != target_category
         ]
 
-        if slot3_candidates:
-            pick = random.choice(slot3_candidates)
-            pick.reason_tag = "✨ Discovery"
-            pick.reason_desc = "Fresh inspiration for you"
+        if candidates_s3:
+            pick3 = random.choice(candidates_s3)
+            pick3.reason_tag = "✨ Discovery"
         else:
-            # Fallback: pick any remaining random
+            # Group B에 마땅한 게 없으면 전체 Pool에서 랜덤
             remain = [a for a in pool if a.id not in selected_ids]
             if remain:
-                pick = random.choice(remain) 
-                pick.reason_tag = "🎲 Random Pick"
-                pick.reason_desc = "Light read you might like"
+                pick3 = random.choice(remain)
+                pick3.reason_tag = "🎲 Random Pick"
             else:
-                 return format_results(final_selection)
+                return format_results(final_selection)
 
-        final_selection.append(pick)
+        final_selection.append(pick3)
 
         return format_results(final_selection)
 
     except Exception as e:
-        logger.error(f"Portfolio Recommendation Error: {e}")
-        return []
+        logger.error(f"Portfolio Rec Error: {e}")
+        # 에러 나면 빈 배열 대신 랜덤 추천이라도 던짐 (Fallback)
+        return recommend_random_recent(user, region, limit)
 
-# Helper: Result Formatting
+# [Helper] 최신 기사 랜덤 추천 (Fallback용)
+def recommend_random_recent(user, region, limit=3):
+    qs = Article.objects.filter(embedding_pytorch__isnull=False)
+    if region:
+        qs = qs.filter(region=region)
+    
+    # 최신 50개 중 랜덤 3개
+    candidates = list(qs.order_by('-created_at')[:50])
+    
+    if not candidates:
+        return []
+        
+    picks = random.sample(candidates, min(len(candidates), limit))
+    
+    # 태그 달아주기
+    for p in picks:
+        p.distance = 0.5 # 가짜 거리 (유사도 50%로 표시됨)
+        p.reason_tag = "🆕 New Arrival"
+        p.reason_desc = "Fresh news for you"
+        
+    return format_results(picks)
+
+# [Helper] 결과 포맷팅 (기존과 동일)
 def format_results(article_list):
     results = []
     for article in article_list:
-        similarity_score = max(0, 1 - article.distance)
+        # distance 속성이 없으면 기본값 1.0 (유사도 0)
+        dist = getattr(article, 'distance', 1.0)
+        similarity_score = max(0, 1 - dist)
         
         raw_text = article.summary if article.summary else article.content
         clean_text = clean_html(raw_text or "")
@@ -516,5 +570,14 @@ def format_results(article_list):
             "reason_desc": getattr(article, 'reason_desc', '')
         })
     
-    # Return in fixed order: [Deep Dive] -> [Category] -> [Discovery]
     return results
+
+# [Helper] HTML 태그 제거 (이미 있다면 생략 가능)
+def clean_html(raw_html):
+    import re
+    import html
+    if not raw_html:
+        return ""
+    cleanr = re.compile('<.*?>')
+    cleantext = re.sub(cleanr, '', raw_html)
+    return html.unescape(cleantext)
