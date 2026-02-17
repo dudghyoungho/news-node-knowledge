@@ -522,13 +522,28 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
 
 # [Helper] 최신 기사 랜덤 추천 (Fallback용)
 def recommend_random_recent(user, region, limit=3):
+    """
+    [Fallback] 최신 기사 랜덤 추천
+    수정사항: 임베딩(embedding_pytorch)이 없어도 일단 보여줌. (빈 화면 방지)
+    """
+    # 1. 임베딩 있는 것 우선 검색
     qs = Article.objects.filter(embedding_pytorch__isnull=False)
     if region:
         qs = qs.filter(region=region)
     
-    # 최신 50개 중 랜덤 3개
     candidates = list(qs.order_by('-created_at')[:50])
     
+    # ---------------------------------------------------------
+    # [Fix] 임베딩 된 게 하나도 없으면? -> 임베딩 없는 거라도 가져옴
+    # ---------------------------------------------------------
+    if not candidates:
+        qs_backup = Article.objects.all()
+        if region:
+            qs_backup = qs_backup.filter(region=region)
+        
+        candidates = list(qs_backup.order_by('-created_at')[:20])
+
+    # 그래도 없으면 진짜 0개임
     if not candidates:
         return []
         
@@ -536,7 +551,8 @@ def recommend_random_recent(user, region, limit=3):
     
     # 태그 달아주기
     for p in picks:
-        p.distance = 0.5 # 가짜 거리 (유사도 50%로 표시됨)
+        # 임베딩이 없어서 distance 계산이 안 되므로 가짜 값(0.5) 부여
+        p.distance = 0.5 
         p.reason_tag = "🆕 New Arrival"
         p.reason_desc = "Fresh news for you"
         
