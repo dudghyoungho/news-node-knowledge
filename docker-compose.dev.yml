@@ -11,10 +11,11 @@ services:
     env_file:
       - .env
     environment:
+      # [핵심 1] DB 주소를 명확히 지정합니다.
+      - DB_HOST=db
+      # [핵심 2] 포트나 이름 등도 확실하게 (settings.py와 맞춤)
+      - DB_PORT=5432
       - ALLOWED_HOSTS=localhost 127.0.0.1 news.young-dev.link .young-dev.link 43.203.231.70
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
 
 
   db:

@@ -1,7 +1,7 @@
 // popup.js
 
 // config.js에서 설정된 값을 가져옴
-const SERVER_URL = typeof CONFIG !== 'undefined' ? CONFIG.API_BASE_URL : "http://localhost:8000";
+const SERVER_URL = typeof CONFIG !== 'undefined' ? CONFIG.API_BASE_URL : "https://news.young-dev.link";
 
 console.log(`[Popup] Current Env: ${typeof CONFIG !== 'undefined' ? CONFIG.ENV : 'DEV'}`);
 console.log(`[Popup] Server URL: ${SERVER_URL}`);

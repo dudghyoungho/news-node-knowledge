@@ -212,7 +212,7 @@ if (window.hasRun) {
 
         const apiBase = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL) 
                         ? CONFIG.API_BASE_URL 
-                        : "http://localhost:8000"; 
+                        : "https://news.young-dev.link"; 
         
         const targetUrl = `${apiBase}/api/news/logs/`;
 

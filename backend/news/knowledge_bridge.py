@@ -10,7 +10,7 @@ from .ai_service import get_completion
 
 logger = logging.getLogger(__name__)
 
-# [Helper] 교집합 추출
+# [Helper] 교집합 추출 (유지)
 def calculate_real_matches(anchor, target):
     if not anchor or not target:
         return []
@@ -39,7 +39,7 @@ def get_knowledge_bridge(user, current_article_id, region='KR'):
     except Article.DoesNotExist:
         return None
 
-    # 2. Slot A (Origin) 실행 - 배경 지식은 조금 느슨해도 됨 (0.75)
+    # 2. Slot A (Origin) 실행 - 배경 지식
     slot_a = get_slot_a_origin(user, anchor, region, combined_user_ids)
     
     # 3. 중복 방지 (Anchor + Slot A 제외)
@@ -47,7 +47,7 @@ def get_knowledge_bridge(user, current_article_id, region='KR'):
     if slot_a and slot_a.get('article'):
         exclude_ids.append(slot_a['article']['id'])
 
-    # 4. Slot B (Verdict) 실행 - 검증은 엄격해야 함 (0.65)
+    # 4. Slot B (Verdict) 실행 - 검증/대조
     slot_b = get_slot_b_verdict(user, anchor, region, combined_user_ids, exclude_ids)
     
     return {
@@ -62,10 +62,9 @@ def get_knowledge_bridge(user, current_article_id, region='KR'):
     }
 
 # =========================================================
-# Slot A: [The Origin] 발단 찾기 (Threshold: 0.75)
+# Slot A: [The Origin] 발단 찾기 (인과관계 중심)
 # =========================================================
 def get_slot_a_origin(user, anchor, region, combined_user_ids):
-    now = timezone.now()
     # 1. [Strict] 과거 기사 우선
     candidates = Article.objects.filter(
         region=region,
@@ -88,24 +87,40 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
         distance=CosineDistance('embedding_pytorch', anchor.embedding_pytorch)
     ).order_by('distance').first()
 
-    # [기준] 배경 지식은 관련성이 조금 낮아도 허용 (0.75)
+    # [Safe Guard] distance가 None이거나 너무 멀면 제외
     if not target or target.distance is None or target.distance > 0.65:
-        return None  # 또는 적절한 처리
+        return None
 
-    # [AI 프롬프트 다국어 처리]
+    # ---------------------------------------------------------
+    # [핵심 수정] 프롬프트 고도화: 인과관계(Causality) & 지칭 금지
+    # ---------------------------------------------------------
     if region == 'KR':
-        prompt = (f"기사 A (과거): '{target.title}'\n기사 B (현재): '{anchor.title}'\n"
-                  "기사 A가 기사 B의 배경이나 원인이 되는 이유를 한 문장으로 간략히 설명해.")
-        sys_role = "너는 뉴스 역사가야."
-        default_comment = "이 뉴스의 배경이 되는 기사입니다."
+        system_role = "너는 뉴스 기사 간의 인과관계를 분석하는 '저널리즘 에디터'야."
+        prompt = (
+            f"[과거 기사]: {target.title}\n(요약: {target.summary})\n\n"
+            f"[현재 기사]: {anchor.title}\n(요약: {anchor.summary})\n\n"
+            f"[지시사항]\n"
+            f"과거 기사의 내용이 현재 사건의 '배경'이나 '원인'이 됨을 설명해줘.\n"
+            f"절대 '기사 A', '기사 B'라고 부르지 마.\n"
+            f"대신 '과거의 [핵심 키워드] 논란이 이번 결정의 배경이 되었습니다' 처럼 자연스럽게 연결해.\n"
+            f"조건: 1문장, 한국어."
+        )
+        default_comment = "이 사건의 배경이 되는 과거 뉴스입니다."
     else:
-        prompt = (f"Article A (Past): '{target.title}'\nArticle B (Present): '{anchor.title}'\n"
-                  "Explain briefly how A provides context for B in one sentence.")
-        sys_role = "You are a News Historian."
-        default_comment = "This article provides context for the current news."
+        system_role = "You are a Journalism Editor focusing on causality."
+        prompt = (
+            f"[Past Context]: {target.title}\n(Summary: {target.summary})\n\n"
+            f"[Current Issue]: {anchor.title}\n(Summary: {anchor.summary})\n\n"
+            f"[Instruction]\n"
+            f"Explain how the past event caused or influenced the current issue.\n"
+            f"Do NOT use terms like 'Article A' or 'Article B'.\n"
+            f"Instead, say something like 'The past controversy regarding [Keyword] set the stage for this decision.'\n"
+            f"Constraint: One sentence, English."
+        )
+        default_comment = "This past event set the stage for today's news."
 
     try:
-        comment = get_completion(prompt, system_role=sys_role)
+        comment = get_completion(prompt, system_role=system_role)
     except:
         comment = default_comment
 
@@ -129,7 +144,7 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
 
 
 # =========================================================
-# Slot B: [The Verdict] 검증하기 (Threshold: 0.65 - 엄격)
+# Slot B: [The Verdict] 검증하기 (비교/평가 중심)
 # =========================================================
 def get_slot_b_verdict(user, anchor, region, combined_user_ids, exclude_ids):
     # 1. 후보군 조회 (중복 제외)
@@ -146,25 +161,40 @@ def get_slot_b_verdict(user, anchor, region, combined_user_ids, exclude_ids):
         distance=CosineDistance('embedding_pytorch', anchor.embedding_pytorch)
     ).order_by('distance').first()
 
-    # [핵심 수정] 검증(Verdict)은 관련성이 높아야 함. 
-    # 거리가 0.65보다 멀면(관련성 낮음) 차라리 안 보여주는 게 나음.
+    # [Safe Guard] distance 체크
     if not target or target.distance is None or target.distance > 0.65: 
         return None
 
-    # [AI 프롬프트 다국어 처리]
+    # ---------------------------------------------------------
+    # [핵심 수정] 프롬프트 고도화: 대조(Contrast) & 평가(Insight)
+    # ---------------------------------------------------------
     if region == 'KR':
-        prompt = (f"기사 A: '{target.title}'\n기사 B: '{anchor.title}'\n"
-                  "두 기사의 핵심 연결고리나 대조되는 점을 한 문장으로 설명해.")
-        sys_role = "너는 데이터 분석가야."
-        default_comment = "관련된 심층 보도입니다."
+        system_role = "너는 비판적 시각을 가진 '수석 논설위원'이야."
+        prompt = (
+            f"[비교 대상]: {target.title}\n(요약: {target.summary})\n\n"
+            f"[현재 이슈]: {anchor.title}\n(요약: {anchor.summary})\n\n"
+            f"[지시사항]\n"
+            f"두 기사의 내용을 비교하거나, 과거 사례를 통해 현재를 '평가'해줘.\n"
+            f"절대 '기사 A/B'라고 지칭하지 마.\n"
+            f"대신 '이전에 우려했던 [키워드]가 현실화되었습니다' 또는 '[과거]와 달리 이번에는 [현재]로 대응하고 있습니다' 처럼 작성해.\n"
+            f"조건: 1문장, 한국어."
+        )
+        default_comment = "유사한 사례와 비교하여 볼 수 있는 심층 보도입니다."
     else:
-        prompt = (f"Article A: '{target.title}'\nArticle B: '{anchor.title}'\n"
-                  "What is the key connection or contrast between these two? Keep it short in one sentence.")
-        sys_role = "You are a Data Analyst."
-        default_comment = "This is a related in-depth report."
+        system_role = "You are a Chief Editorial Writer offering critical insights."
+        prompt = (
+            f"[Comparative Context]: {target.title}\n(Summary: {target.summary})\n\n"
+            f"[Current Issue]: {anchor.title}\n(Summary: {anchor.summary})\n\n"
+            f"[Instruction]\n"
+            f"Compare the two events or evaluate the current issue based on the past precedent.\n"
+            f"Do NOT use terms like 'Article A' or 'Article B'.\n"
+            f"Instead, use a flow like 'Unlike the previous [Event], this time [Action] is being taken.'\n"
+            f"Constraint: One sentence, English."
+        )
+        default_comment = "This related report offers a contrasting perspective."
 
     try:
-        comment = get_completion(prompt, system_role=sys_role)
+        comment = get_completion(prompt, system_role=system_role)
     except:
         comment = default_comment
 

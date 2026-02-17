@@ -185,13 +185,12 @@ def find_connected_articles(target_article):
 # ---------------------------------------------------------
 def review_past_knowledge(user, region='KR'):
     """
-    [Upgrade] 3가지 페르소나(퀴즈/토론/실천) 복기.
-    Region에 따라 언어(한글/영어)와 말투를 변경.
+    [Upgrade] Hallucination 방지를 위한 Grounding 강화 버전
     """
     now = timezone.now()
     threshold_time = now - timedelta(days=1) 
 
-    # 1. 대상 기사 선정 (해당 Region + SAVED + 24시간 경과)
+    # 1. 대상 기사 선정 (기존 로직 유지)
     candidates = Article.objects.filter(
         user=user, 
         created_at__lte=threshold_time, 
@@ -199,13 +198,8 @@ def review_past_knowledge(user, region='KR'):
         region=region
     )
     
-    # (Fallback) 없으면 전체 SAVED 중 해당 Region
     if not candidates.exists():
-        candidates = Article.objects.filter(
-            user=user, 
-            status=Article.Status.SAVED,
-            region=region
-        )
+        candidates = Article.objects.filter(user=user, status=Article.Status.SAVED, region=region)
 
     if not candidates.exists():
         msg = "No articles saved yet." if region == 'AU' else "아직 저장된 기사가 없습니다."
@@ -213,55 +207,80 @@ def review_past_knowledge(user, region='KR'):
 
     target = random.choice(list(candidates))
 
-    # 2. 페르소나 랜덤 선택
+    # 2. 페르소나 선택
     modes = ["quiz", "debate", "action"]
     selected_mode = random.choice(modes)
     
-    # 3. [핵심] 프롬프트 분기 (KR / AU)
+    # [NEW] 엔티티 정보가 있다면 힌트로 제공 (NER 결과 활용)
+    # target.entities가 JSONField나 문자열이라고 가정
+    entity_hint = ""
+    if hasattr(target, 'entities') and target.entities:
+        entity_hint = f"Key Entities: {target.entities}"
+
+    # 3. [핵심] 프롬프트 고도화 (Grounding & Fact-Check)
     if region == 'AU':
         if selected_mode == "quiz":
-            system_role = "You are a sharp Quiz Master."
-            instruction = "Create only one 'True/False' or 'Short multiple-choice' quiz based on this article. Do not reveal the answer."
+            system_role = "You are a strict Examiner. You verify facts based ONLY on the provided text."
+            # [전략] 빈칸 채우기(Fill-in-the-blank)가 환각이 가장 적습니다.
+            instruction = (
+                "Create a 'Fill-in-the-blank' quiz based on a specific fact in the summary. "
+                "The answer must be a specific word (Entity) found in the text. "
+                "Do not use external knowledge. Do not ask 'What is the main topic?'"
+            )
             emoji = "🧩 [Quiz] "
         elif selected_mode == "debate":
             system_role = "You are a Critical Thinking Partner."
-            instruction = "Identify the main argument and propose a 'Counter-argument' or 'Dilemma' to provoke thought."
+            instruction = "Identify the most controversial point in the summary and ask a provocative 'Dilemma' question."
             emoji = "⚖️ [Debate] "
         else: # action
-            system_role = "You are a Growth Coach."
-            instruction = "Ask a specific question on how to apply this knowledge to real life or work."
+            system_role = "You are a Practical Career Coach."
+            instruction = "Based on the specific technology or event in the summary, ask: 'How will you apply [Specific Fact] to your work tomorrow?'"
             emoji = "🚀 [Action] "
             
         full_prompt = (
-            f"[Article]\nTitle: {target.title}\nSummary: {target.summary}\n\n"
-            f"[Task]\n{instruction}\n\nConstraint: Keep it short (1-2 sentences). English only."
+            f"Strictly base your response on the following text.\n\n"
+            f"[Source Text]\nTitle: {target.title}\nSummary: {target.summary}\n{entity_hint}\n\n"
+            f"[Task]\n{instruction}\n\n"
+            f"Constraint: Keep it short (1 sentence). English only. Do NOT provide the answer."
         )
 
     else: # KR
         if selected_mode == "quiz":
-            system_role = "너는 날카로운 퀴즈 출제자야."
-            instruction = "이 기사의 핵심 내용으로 'OX 퀴즈'나 '짧은 객관식'을 내줘. 정답은 숨겨."
+            system_role = "너는 팩트 기반의 깐깐한 퀴즈 출제자야."
+            # [전략] 사실 관계 확인 문제로 유도
+            instruction = (
+                "외부 지식을 쓰지 말고, 오직 '요약문'에 있는 구체적인 사실(숫자, 기업명, 인물)을 묻는 퀴즈를 내. "
+                "정답은 요약문 안에서 찾을 수 있어야 해. (빈칸 채우기 형식 추천)"
+            )
             emoji = "🧩 [퀴즈] "
         elif selected_mode == "debate":
             system_role = "너는 비판적 사고를 돕는 토론 파트너야."
-            instruction = "핵심 주장에 대한 '반대 의견'이나 '딜레마'를 질문으로 던져줘."
+            instruction = "요약문의 핵심 주장을 하나 꼬집어서, 사용자가 고민할만한 '반론'이나 '딜레마'를 질문해줘."
             emoji = "⚖️ [생각] "
         else: # action
-            system_role = "너는 성장을 돕는 라이프 코치야."
-            instruction = "이 내용을 실제 삶에 적용할 수 있는 '구체적인 질문'을 던져줘."
+            system_role = "너는 실천을 돕는 코치야."
+            instruction = "이 지식을 내일 당장 업무나 삶에 적용할 수 있도록, 요약문의 핵심 키워드를 포함해서 구체적인 질문을 던져줘."
             emoji = "🚀 [실천] "
 
         full_prompt = (
-            f"[기사 정보]\n제목: {target.title}\n요약: {target.summary}\n\n"
-            f"[지시사항]\n{instruction}\n\n조건: 1-2문장으로 짧게. 한국어로 작성."
+            f"다음 텍스트에 있는 내용으로만 생성하세요. 외부 지식 금지.\n\n"
+            f"[소스 텍스트]\n제목: {target.title}\n요약: {target.summary}\n{entity_hint}\n\n"
+            f"[지시사항]\n{instruction}\n\n"
+            f"조건: 1-2문장으로 짧게. 정답은 말하지 마. 한국어로 작성."
         )
 
     try:
-        # ai_service의 get_completion 사용
+        # temperature를 0.3~0.5 정도로 낮추면 환각이 줄어듭니다. (호출 함수에서 설정 가능하면 변경 추천)
         comment = get_completion(full_prompt, system_role=system_role)
-        final_comment = emoji + comment
+        
+        # [Optional] 퀴즈일 경우 정답을 사용자가 생각할 수 있게 유도
+        if selected_mode == "quiz":
+            final_comment = f"{emoji} {comment}"
+        else:
+            final_comment = f"{emoji} {comment}"
+            
     except Exception as e:
-        logger.error(f"복기 생성 실패: {e}")
+        # logger.error(f"복기 생성 실패: {e}")
         final_comment = "Do you remember this?" if region == 'AU' else "이 기사, 기억나시나요?"
     
     return {"article": target, "comment": final_comment}
