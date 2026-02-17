@@ -355,6 +355,32 @@ def recommend_external_articles(user, region='KR'):
         "keyword": ", ".join(keywords),
         "articles": final_articles
     }
+
+def format_results(article_list):
+    """ 최종 결과를 JSON 대응 딕셔너리 리스트로 변환 """
+    results = []
+    for article in article_list:
+        dist = getattr(article, 'distance', 1.0)
+        similarity_score = max(0, 1 - dist)
+        
+        raw_text = article.summary if article.summary else article.content
+        display_summary = clean_html(raw_text)[:150] + "..." if raw_text else ""
+        
+        results.append({
+            "id": article.id,
+            "title": article.title,
+            "summary": display_summary,
+            "url": article.url,
+            "thumbnail": article.thumbnail_url or "",
+            "date": article.created_at.strftime("%Y-%m-%d") if article.created_at else "",
+            "region": article.region,
+            "similarity": round(similarity_score * 100, 1),
+            "source": "My Library",
+            "reason_tag": getattr(article, 'reason_tag', 'Recommended'),
+            "reason_desc": getattr(article, 'reason_desc', '')
+        })
+    return results
+
 # ---------------------------------------------------------
 # 6. [NEW] 벡터 기반 추천 (recommend_by_vector) - [수정됨]
 # ---------------------------------------------------------
@@ -520,30 +546,7 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
         # 에러 나면 빈 배열 대신 랜덤 추천이라도 던짐 (Fallback)
         return recommend_random_recent(user, region, limit)
 
-def format_results(article_list):
-    """ 최종 결과를 JSON 대응 딕셔너리 리스트로 변환 """
-    results = []
-    for article in article_list:
-        dist = getattr(article, 'distance', 1.0)
-        similarity_score = max(0, 1 - dist)
-        
-        raw_text = article.summary if article.summary else article.content
-        display_summary = clean_html(raw_text)[:150] + "..." if raw_text else ""
-        
-        results.append({
-            "id": article.id,
-            "title": article.title,
-            "summary": display_summary,
-            "url": article.url,
-            "thumbnail": article.thumbnail_url or "",
-            "date": article.created_at.strftime("%Y-%m-%d") if article.created_at else "",
-            "region": article.region,
-            "similarity": round(similarity_score * 100, 1),
-            "source": "My Library",
-            "reason_tag": getattr(article, 'reason_tag', 'Recommended'),
-            "reason_desc": getattr(article, 'reason_desc', '')
-        })
-    return results
+
 
 def recommend_random_recent(user, region, limit=3):
     """ [Fallback] 아무 기사나 뿌려서 빈 화면 방지 """
