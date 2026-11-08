@@ -1,23 +1,32 @@
-Django>=5.0,<6.0
-psycopg2-binary>=2.9      # PostgreSQL 어댑터
-python-dotenv>=1.0        # .env 파일 로드용
-pgvector>=0.2             # Django에서 벡터 연산 지원
-django-extensions         # 개발 편의 도구 (선택)
-gunicorn                  # 배포 시 사용할 WSGI 서버 (나중을 위해 미리 추가)
-requests                  # 외부 API 호출용
-openai                    # 요약 및 임베딩용
-beautifulsoup4            # 크롤링용
-djangorestframework
-requests
-django-cors-headers
-numpy
-trafilatura
-whitenoise
-django-allauth
-PyJWT
-cryptography
-feedparser
-torch --index-url https://download.pytorch.org/whl/cpu
-sentence-transformers
-googlenewsdecoder
-spacy
+# 직접 쓰는 패키지 (2026-11-08 로컬에서 동작 확인한 버전으로 고정)
+# 하위 의존성까지의 전체 고정은 constraints.txt에 있음
+# torch는 CPU판을 받아야 해서 Dockerfile에서 따로 설치함 (여기에 넣지 말 것)
+
+# Web / API
+Django==5.2.19
+djangorestframework==3.18.3
+django-cors-headers==4.9.0
+django-allauth==65.21.1   # settings의 INSTALLED_APPS·미들웨어가 요구함
+django-extensions==4.1    # 개발 편의 도구
+PyJWT==2.15.1             # allauth 의존
+cryptography==50.0.2      # allauth 의존
+gunicorn==26.2.0          # 운영 WSGI 서버
+whitenoise==6.12.0        # 정적 파일 서빙
+python-dotenv==1.2.4
+
+# DB
+psycopg2-binary==2.9.13   # PostgreSQL 어댑터
+pgvector==0.5.1           # Django 벡터 필드 / CosineDistance
+
+# AI / NLP
+openai==3.46.0            # 분류·요약·임베딩 (gpt-4o-mini, text-embedding-3-small)
+sentence-transformers==6.2.0
+spacy==3.8.18             # 모델(ko_core_news_sm, en_core_web_sm)은 Dockerfile에서 다운로드
+numpy==2.4.6
+
+# 크롤링 / 수집
+requests==2.34.2
+beautifulsoup4==4.15.0
+trafilatura==2.3.1
+feedparser==6.0.14
+googlenewsdecoder==0.2.2

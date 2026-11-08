@@ -1,0 +1,26 @@
+# 비밀 정보: 이미지에 넣지 않음 (compose의 env_file로 주입)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 문서·AI 대화 기록
+docs/
+
+# 운영 서버의 Nginx Proxy Manager 데이터 (root 소유라 빌드 시 권한 에러 원인)
+data/
+letsencrypt/
+
+# 빌드 산출물·캐시
+extension_build/
+postgres_data/
+media/
+static/
+**/__pycache__/
+*.py[cod]
+venv/
+.git/
+.idea/
+.vscode/
+.DS_Store

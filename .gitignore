@@ -11,8 +11,8 @@ extension_build/
 extension_src/manifest.json
 extension_src/config.js
 
-# AI 대화 기록 (업로드 금지)
-docs/history_gemini.txt
+# 문서·AI 대화 기록 (docs/ 전체 커밋 금지)
+docs/
 
 # 비밀 정보 (환경별 env, 인증서·SSH 키)
 .env.*
