@@ -19,3 +19,6 @@ docs/
 !.env.example
 *.pem
 *.key
+
+# 루트 CLAUDE.md는 docs/CLAUDE.md를 가리키는 링크 (docs/는 별도 로컬 저장소에서 관리)
+/CLAUDE.md
