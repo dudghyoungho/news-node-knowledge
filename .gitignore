@@ -10,3 +10,6 @@ extension_build/
 
 extension_src/manifest.json
 extension_src/config.js
+
+# AI 대화 기록 (업로드 금지)
+docs/history_gemini.txt

@@ -20,9 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
         .nodeLabel('') 
         .nodeVal('val')
         
-        // --------------------------------------------------
-        // [디자인] 링크(선) 스타일링: 굵기 증가 및 명확한 구분
-        // --------------------------------------------------
         .linkCanvasObject((link, ctx, globalScale) => {
             if (globalScale < 0.5 && link.type === 'category') return;
 
@@ -32,24 +29,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(link.source.x, link.source.y);
             ctx.lineTo(link.target.x, link.target.y);
             
-            // 1. [수정] 선의 굵기(lineWidth)를 전체적으로 대폭 증가
             let baseWidth = 2;
-            if (link.type === 'semantic') baseWidth = 4; // 벡터 유사도 (6 -> 4)
-            else if (link.type === 'entity' || link.type === 'shared_entity') baseWidth = 2.5; // NER 연결선 (4 -> 2.5)
-            else baseWidth = 2; // 카테고리 실선 (3 -> 2)
+            if (link.type === 'semantic') baseWidth = 4; 
+            else if (link.type === 'entity' || link.type === 'shared_entity') baseWidth = 2.5; 
+            else baseWidth = 2; 
 
             ctx.lineWidth = baseWidth / globalScale;
             ctx.shadowBlur = 0;
 
-            // 2. [수정] 선 타입별 색상, 불투명도, 점선 패턴 명확히 구분
             if (link.type === 'category' || !link.type) {
-                // ① 카테고리 연결선: 연한 파랑 (실선)
                 ctx.strokeStyle = isConnectedToHover ? '#74b9ff' : 'rgba(116, 185, 255, 0.4)'; 
                 if(isConnectedToHover) { ctx.shadowColor = '#74b9ff'; ctx.shadowBlur = 8; }
-                // 실선이므로 LineDash 설정 안 함
             } 
             else if (link.type === 'semantic') {
-                // ② 벡터 유사도(Semantic): 붉은색 (길고 굵은 점선)
                 ctx.strokeStyle = isConnectedToHover ? '#ff7675' : 'rgba(250, 177, 160, 0.7)'; // 불투명도 0.7로 진하게
                 if(isConnectedToHover) { ctx.shadowColor = '#ff7675'; ctx.shadowBlur = 12; }
                 // 굵직한 긴 점선 패턴 (Dash: 8, Gap: 6)
@@ -115,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
             
             if (node.imgObj && (globalScale > SHOW_NODE_THRESHOLD || isHover)) {
-                // [이미지 노드 - 기사만 해당됨]
                 ctx.save();
                 ctx.clip();
                 ctx.drawImage(node.imgObj, node.x - radius, node.y - radius, radius * 2, radius * 2);

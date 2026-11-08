@@ -1,6 +1,5 @@
 import torch
 from django.core.management.base import BaseCommand
-from sentence_transformers import SentenceTransformer
 from news.ai_service import get_local_model
 from news.models import Article
 import time

@@ -16,6 +16,9 @@ urlpatterns = [
     # 1. 인증 관련 (auth_views)
     path('auth/google/', auth_views.google_login, name='google_login'),
 
+    # 1-1. Demo Login
+    path('auth/demo/', auth_views.demo_login, name='demo_login'),
+
     # 2. 익스텐션 기능 (article_views)
     path('summarize/', article_views.summarize, name='summarize'), 
     path('save/', article_views.save_article, name='save_article'),
@@ -39,6 +42,4 @@ urlpatterns = [
     # 6. 로그 관련 (log_views)
     path('logs/', log_views.LogCreateView.as_view(), name='log-create'),
 
-    # 7. Demo Login
-    path('auth/demo/', auth_views.demo_login, name='demo_login'),
 ]
