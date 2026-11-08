@@ -13,3 +13,9 @@ extension_src/config.js
 
 # AI 대화 기록 (업로드 금지)
 docs/history_gemini.txt
+
+# 비밀 정보 (환경별 env, 인증서·SSH 키)
+.env.*
+!.env.example
+*.pem
+*.key
