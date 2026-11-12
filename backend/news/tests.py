@@ -156,3 +156,84 @@ class SummarizeViewGuardTests(SimpleTestCase):
             response = self._post("file:///etc/passwd")
         self.assertEqual(response.status_code, 400)
         extract.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# [보-2] 구글 로그인: 토큰 발급 대상(aud/azp) 확인
+# ---------------------------------------------------------------------------
+from django.test import override_settings  # noqa: E402
+
+from news.views import auth_views  # noqa: E402
+
+OUR_CLIENT = "our-client.apps.googleusercontent.com"
+OTHER_CLIENT = "evil-app.apps.googleusercontent.com"
+
+
+def google_res(status=200, data=None):
+    return SimpleNamespace(status_code=status, json=lambda: data or {})
+
+
+@override_settings(GOOGLE_OAUTH_CLIENT_IDS=[OUR_CLIENT])
+class GoogleLoginAudienceTests(SimpleTestCase):
+    def _post(self, body):
+        request = APIRequestFactory().post("/api/news/auth/google/", body, format="json")
+        return auth_views.google_login(request)
+
+    def _patch_db(self):
+        user = SimpleNamespace(username="a@b.com")
+        return (
+            mock.patch.object(auth_views.User.objects, "get_or_create", return_value=(user, False)),
+            mock.patch.object(auth_views.Token.objects, "get_or_create",
+                              return_value=(SimpleNamespace(key="tok123"), False)),
+        )
+
+    def test_token_for_our_client_logs_in(self):
+        info = {"aud": OUR_CLIENT, "azp": OUR_CLIENT, "email": "a@b.com", "email_verified": "true"}
+        p_user, p_token = self._patch_db()
+        with mock.patch.object(auth_views.requests, "get",
+                               side_effect=[google_res(200, info), google_res(200, {"name": "A"})]) as get, \
+                p_user as get_user, p_token:
+            response = self._post({"access_token": "t"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["token"], "tok123")
+        get_user.assert_called_once()
+        self.assertEqual(get.call_args_list[0].args[0], auth_views.GOOGLE_TOKENINFO_URL)
+
+    def test_token_issued_to_other_app_is_rejected(self):
+        info = {"aud": OTHER_CLIENT, "azp": OTHER_CLIENT, "email": "victim@b.com", "email_verified": "true"}
+        p_user, p_token = self._patch_db()
+        with mock.patch.object(auth_views.requests, "get", return_value=google_res(200, info)), \
+                p_user as get_user, p_token as get_token:
+            response = self._post({"access_token": "t"})
+        self.assertEqual(response.status_code, 400)
+        get_user.assert_not_called()
+        get_token.assert_not_called()
+
+    def test_azp_match_is_accepted(self):
+        info = {"aud": "something-else", "azp": OUR_CLIENT, "email": "a@b.com", "email_verified": True}
+        p_user, p_token = self._patch_db()
+        with mock.patch.object(auth_views.requests, "get",
+                               side_effect=[google_res(200, info), google_res(500)]), p_user, p_token:
+            response = self._post({"access_token": "t"})
+        self.assertEqual(response.status_code, 200)  # 이름 조회 실패해도 로그인
+
+    def test_unverified_email_is_rejected(self):
+        info = {"aud": OUR_CLIENT, "email": "a@b.com", "email_verified": "false"}
+        p_user, p_token = self._patch_db()
+        with mock.patch.object(auth_views.requests, "get", return_value=google_res(200, info)), \
+                p_user as get_user, p_token:
+            response = self._post({"access_token": "t"})
+        self.assertEqual(response.status_code, 400)
+        get_user.assert_not_called()
+
+    def test_invalid_or_missing_token(self):
+        with mock.patch.object(auth_views.requests, "get", return_value=google_res(400, {"error": "invalid_token"})):
+            self.assertEqual(self._post({"access_token": "bad"}).status_code, 400)
+        with mock.patch.object(auth_views.requests, "get") as get:
+            self.assertEqual(self._post({}).status_code, 400)
+            get.assert_not_called()
+
+    def test_google_unreachable_returns_502(self):
+        with mock.patch.object(auth_views.requests, "get",
+                               side_effect=auth_views.requests.ConnectionError("down")):
+            self.assertEqual(self._post({"access_token": "t"}).status_code, 502)

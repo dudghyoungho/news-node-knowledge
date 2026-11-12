@@ -154,6 +154,19 @@ NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 NEWSAPI_KEY = os.environ.get("NEWSAPI_KEY")
 
+# [Google Login] 토큰 발급 대상(aud/azp)으로 허용할 OAuth client ID (쉼표 구분)
+# 크롬 확장 dev / prod(서버 테스트) / store(웹스토어) 3개. 공개 값이며 build_extension.py의 OAUTH_CLIENT_IDS와 같아야 함
+_DEFAULT_GOOGLE_OAUTH_CLIENT_IDS = ",".join([
+    "307150378715-6k7401oof17j9gvg9dd83cvduv7n79s4.apps.googleusercontent.com",  # dev
+    "307150378715-msus9lvuupid4a7et5avbhlabbml3l4s.apps.googleusercontent.com",  # prod
+    "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com",  # store
+])
+GOOGLE_OAUTH_CLIENT_IDS = [
+    cid.strip()
+    for cid in os.environ.get("GOOGLE_OAUTH_CLIENT_IDS", _DEFAULT_GOOGLE_OAUTH_CLIENT_IDS).split(",")
+    if cid.strip()
+]
+
 
 # ------------------------------------------------------------------------------
 # [보안 및 CORS/CSRF 설정]
