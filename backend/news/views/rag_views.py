@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from ..models import Article
+from ..access import visible_articles
 
 # 서비스 로직 임포트
 from ..rag_service import (
@@ -96,7 +97,8 @@ def article_bridge_view(request, article_id):
     특정 기사를 읽을 때 필요한 모든 정보(Anchor, Slot A, Slot B)를 한 번에 반환
     """
     region = request.GET.get('region', 'KR')
-    anchor = get_object_or_404(Article, id=article_id)
+    # 내 기사 또는 RSS 공용 기사만 (남의 기사 id면 404)
+    anchor = get_object_or_404(visible_articles(request.user), id=article_id)
 
     # 1. 서비스 호출
     bridge_data = get_knowledge_bridge(request.user, article_id, region=region)
@@ -155,8 +157,9 @@ def article_bridge_view(request, article_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def context_recommendation(request, article_id):
-    article = get_object_or_404(Article, id=article_id) 
-    connections = find_connected_articles(article)
+    article = get_object_or_404(visible_articles(request.user), id=article_id)
+    # 비교 대상은 '요청한 사용자'의 서재 (기사 주인의 서재가 아님)
+    connections = find_connected_articles(article, request.user)
     return Response(connections)
 
 

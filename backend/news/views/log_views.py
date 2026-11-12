@@ -8,7 +8,10 @@ from datetime import timedelta
 from django.utils import timezone
 
 # 모델 및 로직 임포트
+from django.db.models import Case, IntegerField, Value, When
+
 from ..models import Article, UserActionLog
+from ..access import visible_articles
 from ..recommendation import update_user_vector
 from ..ai_service import get_embedding
 
@@ -77,7 +80,13 @@ class LogCreateView(APIView):
                 print(f"🖱️ [Log] 단순 클릭(Click) ({dwell_time}s)")
 
             # 2. 내부 기사 매칭 확인
-            matched_article = Article.objects.filter(url=url).first()
+            # 같은 URL이 여럿이면 내 기사 우선, 없으면 RSS 공용 기사 (다른 사용자 기사에는 연결하지 않음)
+            matched_article = (
+                visible_articles(user).filter(url=url)
+                .annotate(_mine=Case(When(user=user, then=Value(0)), default=Value(1), output_field=IntegerField()))
+                .order_by('_mine', '-created_at')
+                .first()
+            )
 
             # 3. 로그 저장 (UserActionLog) - 기록은 무조건 남김
             UserActionLog.objects.create(

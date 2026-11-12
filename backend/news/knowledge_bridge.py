@@ -6,6 +6,7 @@ from pgvector.django import CosineDistance
 
 # UserActionLog를 포함하여 필요한 모델 임포트
 from .models import Article, UserActionLog
+from .access import visible_articles
 from .ai_service import get_completion
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,8 @@ def get_knowledge_bridge(user, current_article_id, region='KR'):
     combined_user_ids = list(set(user_article_ids + authored_ids))
 
     try:
-        anchor = Article.objects.get(id=current_article_id)
+        # 내 기사 또는 RSS 공용 기사만 기준으로 삼을 수 있음 (남의 기사 id면 None)
+        anchor = visible_articles(user).get(id=current_article_id)
     except Article.DoesNotExist:
         return None
 
@@ -68,8 +70,8 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
 
     three_months_ago = anchor.created_at - timedelta(days=90)
 
-    # 1. [Strict] 과거 기사 우선
-    candidates = Article.objects.filter(
+    # 1. [Strict] 과거 기사 우선 (후보: 내 기사 + RSS 공용 기사)
+    candidates = visible_articles(user).filter(
         region=region,
         created_at__lt=anchor.created_at,
         created_at__gte=three_months_ago, # [추가] 시간 제약
@@ -78,7 +80,7 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
 
     # 2. [Fallback] 없으면 전체 검색
     if not candidates.exists():
-        candidates = Article.objects.filter(
+        candidates = visible_articles(user).filter(
             region=region,
             embedding_pytorch__isnull=False
         ).exclude(id=anchor.id)
@@ -209,8 +211,8 @@ def get_slot_a_origin(user, anchor, region, combined_user_ids):
 # Slot B: [The Verdict] 검증하기 (비교/평가 중심)
 # =========================================================
 def get_slot_b_verdict(user, anchor, region, combined_user_ids, exclude_ids):
-    # 1. 후보군 조회 (중복 제외)
-    candidates = Article.objects.filter(
+    # 1. 후보군 조회 (중복 제외, 내 기사 + RSS 공용 기사)
+    candidates = visible_articles(user).filter(
         region=region,
         embedding_pytorch__isnull=False
     ).exclude(id__in=exclude_ids)

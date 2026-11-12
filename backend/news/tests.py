@@ -237,3 +237,114 @@ class GoogleLoginAudienceTests(SimpleTestCase):
         with mock.patch.object(auth_views.requests, "get",
                                side_effect=auth_views.requests.ConnectionError("down")):
             self.assertEqual(self._post({"access_token": "t"}).status_code, 502)
+
+
+# ---------------------------------------------------------------------------
+# [보-3] 다른 사용자의 기사 노출 차단 (실제 테스트 DB 사용)
+# ---------------------------------------------------------------------------
+from django.contrib.auth import get_user_model  # noqa: E402
+from django.test import TestCase  # noqa: E402
+from django.utils import timezone as dj_tz  # noqa: E402
+from rest_framework.test import APIClient  # noqa: E402
+
+from news.access import visible_articles  # noqa: E402
+from news.models import Article, UserActionLog  # noqa: E402
+from news.rag_service import recommend_mixed_portfolio, recommend_random_recent  # noqa: E402
+
+
+def vec(seed):
+    """768차원 테스트 벡터. seed가 같으면 같은 벡터(=코사인 거리 0)."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    v = rng.normal(size=768)
+    return (v / np.linalg.norm(v)).tolist()
+
+
+@mock.patch("news.knowledge_bridge.get_completion", return_value="(test comment)")
+class CrossUserIsolationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.admin = User.objects.create_superuser("admin", "admin@test.local", "x")
+        cls.alice = User.objects.create_user("alice")
+        cls.bob = User.objects.create_user("bob")
+        now = dj_tz.now()
+        ent = {"PERSON": ["홍길동"], "ORG": ["뉴스노드"]}
+
+        def mk(user, title, source, seed, days_ago=0, url=None):
+            return Article.objects.create(
+                user=user, title=title, url=url or f"https://news.example.com/{title}",
+                source=source, region="KR", status=Article.Status.SAVED, summary=f"{title} 요약",
+                category="IT/테크", entities=ent, embedding_pytorch=vec(seed),
+                created_at=now - dj_tz.timedelta(days=days_ago),
+            )
+
+        cls.alice_art = mk(cls.alice, "alice-own", Article.Source.USER_SAVED, seed=1)
+        # bob의 기사: alice 기사와 벡터가 똑같고 과거 기사 → 막지 않으면 Bridge 1순위 후보가 됨
+        cls.bob_art = mk(cls.bob, "bob-private", Article.Source.USER_SAVED, seed=1, days_ago=3,
+                         url="https://news.example.com/shared")
+        cls.rss_old = mk(cls.admin, "rss-old", Article.Source.RSS_CRAWLED, seed=2, days_ago=5,
+                         url="https://news.example.com/shared")
+        cls.rss_new = mk(cls.admin, "rss-new", Article.Source.RSS_CRAWLED, seed=3, days_ago=1)
+
+    def client_for(self, user):
+        c = APIClient()
+        c.force_authenticate(user)
+        return c
+
+    def test_visible_articles_scope(self, _llm):
+        ids = set(visible_articles(self.alice).values_list("id", flat=True))
+        self.assertIn(self.alice_art.id, ids)
+        self.assertIn(self.rss_old.id, ids)
+        self.assertNotIn(self.bob_art.id, ids)
+
+    def test_bridge_on_other_users_article_is_404(self, _llm):
+        r = self.client_for(self.alice).get(f"/api/news/articles/{self.bob_art.id}/bridge/")
+        self.assertEqual(r.status_code, 404)
+
+    def test_bridge_candidates_exclude_other_users_articles(self, _llm):
+        r = self.client_for(self.alice).get(f"/api/news/articles/{self.alice_art.id}/bridge/?region=KR")
+        self.assertEqual(r.status_code, 200)
+        body = str(r.data)
+        self.assertNotIn("bob-private", body)
+
+    def test_bridge_on_rss_article_is_allowed(self, _llm):
+        r = self.client_for(self.alice).get(f"/api/news/articles/{self.rss_new.id}/bridge/")
+        self.assertEqual(r.status_code, 200)
+
+    def test_context_recommendation_on_other_users_article_is_404(self, _llm):
+        r = self.client_for(self.alice).get(f"/api/news/rag/context/{self.bob_art.id}/")
+        self.assertEqual(r.status_code, 404)
+
+    def test_portfolio_and_fallback_never_return_other_users_articles(self, _llm):
+        from news.models import UserProfile
+        UserProfile.objects.create(user=self.alice, embedding_user=vec(1))
+        for results in (recommend_mixed_portfolio(self.alice, region="KR"),
+                        recommend_random_recent(self.alice, "KR", limit=10)):
+            ids = {getattr(a, "id", None) or a.get("id") for a in results}
+            self.assertNotIn(self.bob_art.id, ids)
+
+    def test_stats_recent_fallback_excludes_other_users_articles(self, _llm):
+        r = self.client_for(self.alice).get("/api/news/stats/?region=KR")
+        self.assertEqual(r.status_code, 200)
+        ids = {a["id"] for a in r.data.get("recent_articles", [])}
+        self.assertNotIn(self.bob_art.id, ids)
+
+    def test_log_links_to_rss_not_other_users_article(self, _llm):
+        r = self.client_for(self.alice).post(
+            "/api/news/logs/",
+            {"article_url": "https://news.example.com/shared", "dwell_time": 10, "region": "KR"},
+            format="json",
+        )
+        self.assertIn(r.status_code, (200, 201))
+        log = UserActionLog.objects.filter(user=self.alice).latest("timestamp")
+        self.assertEqual(log.article_id, self.rss_old.id)
+
+    def test_log_prefers_own_article(self, _llm):
+        self.client_for(self.bob).post(
+            "/api/news/logs/",
+            {"article_url": "https://news.example.com/shared", "dwell_time": 10, "region": "KR"},
+            format="json",
+        )
+        log = UserActionLog.objects.filter(user=self.bob).latest("timestamp")
+        self.assertEqual(log.article_id, self.bob_art.id)

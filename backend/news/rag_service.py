@@ -9,6 +9,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
 from .models import Article, UserActionLog
+from .access import visible_articles
 from .ai_service import get_completion  # ai_service에서 가져오기
 from pgvector.django import CosineDistance
 
@@ -138,7 +139,7 @@ def search_newsapi(keyword):
 # ---------------------------------------------------------
 # 3. [Feature] DB 내부 연관 기사 추천 (find_connected_articles)
 # ---------------------------------------------------------
-def find_connected_articles(target_article):
+def find_connected_articles(target_article, user):
     """
     현재 읽는 기사와 유사한 내 서재의 기사를 찾습니다.
     (같은 국가 region 기사끼리만 매칭)
@@ -146,9 +147,9 @@ def find_connected_articles(target_article):
     if not target_article.embedding:
         return []
 
-    # [수정] 같은 유저 + SAVED + ★같은 Region★
+    # 요청한 사용자의 서재 + SAVED + 같은 Region (기사 주인의 서재를 보여주지 않음)
     user_articles = Article.objects.filter(
-        user=target_article.user, 
+        user=user, 
         status=Article.Status.SAVED,
         region=target_article.region
     ).exclude(id=target_article.id).exclude(embedding__isnull=True)
@@ -411,7 +412,8 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
         exclude_ids = viewed_ids + list(Article.objects.filter(user=user).values_list('id', flat=True))
 
         # [Step 2] 기본 쿼리셋 (임베딩 있는 것만)
-        base_qs = Article.objects.filter(embedding_pytorch__isnull=False)
+        # 후보: 내 기사 + RSS 공용 기사 (다른 사용자 서재 제외)
+        base_qs = visible_articles(user).filter(embedding_pytorch__isnull=False)
         if region:
             base_qs = base_qs.filter(region=region)
 
@@ -550,7 +552,7 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
 
 def recommend_random_recent(user, region, limit=3):
     """ [Fallback] 아무 기사나 뿌려서 빈 화면 방지 """
-    qs = Article.objects.all()
+    qs = visible_articles(user)
     if region: qs = qs.filter(region=region)
     
     # 1. 임베딩 된 것 우선, 없으면 전체에서 최신순

@@ -9,6 +9,7 @@ from datetime import timedelta
 
 # [중요] 모델이 있는 정확한 경로 확인 (보통 ..models)
 from ..models import Article, UserActionLog
+from ..access import visible_articles
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,8 @@ def get_dashboard_stats(request):
         # (2) Fallback: 사용자 기록이 없으면(Cold Start) 전체 DB에서 최신 기사 가져오기
         # Knowledge Context Map이 무한 로딩에 걸리지 않도록 필수적임
         if len(recent_articles) < 5:
-            fallback_candidates = Article.objects.filter(
+            # 대체 후보: 내 기사 + RSS 공용 기사 (다른 사용자 서재 제외)
+            fallback_candidates = visible_articles(user).filter(
                 region=region
             ).exclude(id__in=seen_ids).order_by('-created_at')[:(5 - len(recent_articles))]
             
