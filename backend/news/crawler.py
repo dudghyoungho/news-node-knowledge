@@ -6,6 +6,8 @@ import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+from .url_safety import safe_get, UnsafeURLError
+
 # [차단 방지 1] 최신 브라우저 User-Agent로 교체 (2024~2025년 기준)
 # 구형 UA를 쓰면 보안 솔루션이 "업데이트 안 된 수상한 봇"으로 간주할 수 있음
 USER_AGENTS = [
@@ -83,13 +85,13 @@ def _extract_general(url):
         
         # 4. Requests로 안전하게 다운로드
         try:
-            response = requests.get(
-                url, 
-                headers=get_headers(), 
+            # safe_get: 내부망 주소 차단 + 리다이렉트마다 재검사 (SSRF 방지)
+            response = safe_get(
+                url,
+                headers=get_headers(),
                 # (접속 5초, 다운로드 15초) -> 해외 사이트 느림 고려하여 약간 늘림
-                timeout=(5, 15), 
-                allow_redirects=True,
-                stream=True 
+                timeout=(5, 15),
+                stream=True
             )
             
             # HTML 형식이 아니면 중단
@@ -110,6 +112,9 @@ def _extract_general(url):
                 # 403 Forbidden 등 에러 시
                 return None
 
+        except UnsafeURLError as e:
+            print(f"⛔ [Crawler] 차단된 주소: {url} ({e})")
+            return None
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             return None
         except Exception:
@@ -182,7 +187,7 @@ def _extract_naver_specific(url):
     네이버 전용 크롤러 (기존 로직 유지)
     """
     try:
-        response = requests.get(url, headers=get_headers(), timeout=10)
+        response = safe_get(url, headers=get_headers(), timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 

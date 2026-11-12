@@ -10,7 +10,8 @@ from rest_framework import status
 # 모델 및 로직 임포트
 from ..models import Article, UserActionLog
 from ..recommendation import update_user_vector
-from ..crawler import extract_article 
+from ..crawler import extract_article
+from ..url_safety import validate_public_url, UnsafeURLError
 from ..ai_service import summarize_stream, get_embedding, classify_news
 from ..nlp_utils import extract_entities # [New] NER 함수 임포트
 
@@ -31,6 +32,13 @@ def summarize(request):
 
     if not url:
         return Response({'error': 'URL이 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 서버가 대신 가져와도 되는 공개 주소인지 먼저 검사 (SSRF 방지)
+    try:
+        url = validate_public_url(url)
+    except UnsafeURLError as e:
+        logger.warning(f"⛔ [Summarize] 차단된 주소 요청: user={request.user.id} url={url!r} ({e})")
+        return Response({'error': f'요약할 수 없는 주소입니다: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
     # 이미 저장된 기사인지 확인
     if Article.objects.filter(user=request.user, url=url, status=Article.Status.SAVED).exists():
