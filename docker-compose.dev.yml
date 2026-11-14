@@ -19,7 +19,8 @@ services:
 
 
   db:
-    image: ankane/pgvector:latest
+    # 운영과 같은 이미지 (PostgreSQL 15.4 + pgvector 0.5.1)
+    image: ankane/pgvector@sha256:956744bd14e9cbdf639c61c2a2a7c7c2c48a9c8cdd42f7de4ac034f4e96b90f8
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:

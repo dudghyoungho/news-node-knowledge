@@ -1,8 +1,10 @@
-version: '3.8'
-
+# 운영용 compose. 실행: docker compose -f docker-compose.prod.yml up -d
+# - restart: unless-stopped → 서버 재부팅·컨테이너 오류 후 자동으로 다시 뜬다 (직접 stop한 것은 제외)
+# - 이미지는 서버에서 돌던 버전을 tag@digest로 고정한다. 바꿀 때는 의도적으로 이 줄을 고친다.
 services:
   web:
     build: .
+    restart: unless-stopped
     command: >
       sh -c "python backend/manage.py collectstatic --noinput &&
              gunicorn --bind 0.0.0.0:8000 --chdir backend config.wsgi:application"
@@ -18,13 +20,16 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=db
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy   # DB가 접속을 받을 수 있을 때 web을 띄운다
+      redis:
+        condition: service_started
     networks:
       - news-network
 
   nginx-proxy-manager:
-    image: 'jc21/nginx-proxy-manager:latest'
+    # 2.13.6 (2026-01-28 빌드). 서버에서 돌던 이미지 그대로. latest는 2026-11-13에 새 버전으로 바뀜
+    image: 'jc21/nginx-proxy-manager:2.13.6@sha256:08e0997ce1cc8738637b0e271a727815ea89ed564ce392e0f9035f1a03c089c5'
     restart: unless-stopped
     ports:
       - '80:80'
@@ -39,20 +44,31 @@ services:
       - news-network
 
   db:
-    image: ankane/pgvector:latest
+    # PostgreSQL 15.4 + pgvector 0.5.1 (ankane/pgvector:latest, 2023-10-11 빌드, 이후 갱신 없음).
+    # 공식 후속 이미지(pgvector/pgvector:pg15)로 옮기는 것은 버전 업그레이드이므로 따로 진행한다.
+    image: ankane/pgvector@sha256:956744bd14e9cbdf639c61c2a2a7c7c2c48a9c8cdd42f7de4ac034f4e96b90f8
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      # $$는 compose가 아니라 컨테이너 안의 셸이 변수를 풀게 한다
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     expose:
       - 5432
     networks:
       - news-network
 
   redis:
-    image: redis:alpine
+    # Redis 8.4.0 (2025-11-18 빌드). 코드에서 아직 쓰지 않음. 태그는 설명용이고 digest가 실제 기준
+    image: redis:8.4.0-alpine@sha256:6cbef353e480a8a6e7f10ec545f13d7d3fa85a212cdcc5ffaf5a1c818b9d3798
+    restart: unless-stopped
     expose:
       - 6379
     networks:
