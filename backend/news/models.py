@@ -154,6 +154,18 @@ class UserActionLog(models.Model):
     
     timestamp = models.DateTimeField(auto_now_add=True)
 
+    # "이미 본 기사"로 치는 행동. CLICK(7~15초)은 잡음이 많아 넣지 않는다.
+    SEEN_ACTIONS = (ActionType.READ, ActionType.SAVE)
+
+    @classmethod
+    def seen_article_ids(cls, user):
+        """사용자가 정독(READ)하거나 저장(SAVE)한, DB에 있는 기사 id 목록."""
+        return list(
+            cls.objects.filter(user=user, action__in=cls.SEEN_ACTIONS, article__isnull=False)
+            .values_list('article_id', flat=True)
+            .distinct()
+        )
+
     def __str__(self):
         return f"Log: {self.user.username} - {self.action} ({self.dwell_time}s)"
 

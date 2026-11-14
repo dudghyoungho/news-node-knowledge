@@ -403,10 +403,8 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
     
     try:
         # [Step 1] 내가 이미 본 기사 목록 가져오기
-        viewed_ids = list(UserActionLog.objects.filter(
-            user=user, 
-            action__in=['read', 'star', 'save']
-        ).values_list('article_id', flat=True))
+        # (저장값은 READ/SAVE 대문자. 예전 코드는 소문자로 찾아서 항상 빈 목록이었음)
+        viewed_ids = UserActionLog.seen_article_ids(user)
         
         # 제외할 ID 목록 (본 것 + 내가 쓴 것)
         exclude_ids = viewed_ids + list(Article.objects.filter(user=user).values_list('id', flat=True))
@@ -443,7 +441,9 @@ def recommend_mixed_portfolio(user, region=None, limit=3):
         # [Step 4] Group B: 다양성 기반 (Recent Random 50)
         # ---------------------------------------------------------
         # 최신순 100개 중 랜덤 50개 추출 (벡터 무관 -> 필터 버블 파괴)
-        recent_pool = list(base_qs.order_by('-created_at')[:100])
+        # 제외가 적용된 candidates_qs에서 뽑는다. base_qs에서 뽑으면 본 기사·내 기사가
+        # Discovery 칸으로 다시 들어온다. (남은 후보가 없을 때는 candidates_qs가 곧 base_qs)
+        recent_pool = list(candidates_qs.order_by('-created_at')[:100])
         group_b = random.sample(recent_pool, min(len(recent_pool), 50))
 
         # ---------------------------------------------------------

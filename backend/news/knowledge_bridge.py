@@ -27,10 +27,7 @@ def calculate_real_matches(anchor, target):
 
 def get_knowledge_bridge(user, current_article_id, region='KR'):
     # 1. 사용자 데이터 조회
-    user_article_ids = list(UserActionLog.objects.filter(
-        user=user, 
-        action__in=['read', 'star', 'save']
-    ).values_list('article_id', flat=True))
+    user_article_ids = UserActionLog.seen_article_ids(user)
     
     authored_ids = list(Article.objects.filter(user=user).values_list('id', flat=True))
     combined_user_ids = list(set(user_article_ids + authored_ids))

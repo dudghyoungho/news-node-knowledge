@@ -485,3 +485,77 @@ class ThrottleTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.demo.refresh_from_db()
         self.assertFalse(self.demo.has_usable_password())
+
+
+# ---------------------------------------------------------------------------
+# [버-1] "이미 본 기사 제외" — 저장값(READ/SAVE 대문자)과 조회값 일치, 추천에서 제외
+# ---------------------------------------------------------------------------
+from news.models import UserProfile  # noqa: E402
+
+
+class SeenArticleExclusionTests(TestCase):
+    """
+    alice의 취향 벡터와 가장 가까운 RSS 기사(rss_read)를 alice가 이미 읽었다.
+    추천 묶음(3칸)에는 읽은 기사와 alice 자신의 기사가 나오면 안 된다.
+    무작위가 섞여 있어서 여러 번 돌려 확인한다.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.admin = User.objects.create_superuser("admin", "admin@test.local", "x")
+        cls.alice = User.objects.create_user("alice")
+        UserProfile.objects.create(user=cls.alice, embedding_user=vec(1))
+        now = dj_tz.now()
+
+        def mk(user, title, source, seed, category="IT/테크", days_ago=1):
+            return Article.objects.create(
+                user=user, title=title, url=f"https://news.example.com/{title}",
+                source=source, region="KR", status=Article.Status.SAVED, summary=f"{title} 요약",
+                category=category, article_type="INSIGHT", entities={}, embedding_pytorch=vec(seed),
+                created_at=now - dj_tz.timedelta(days=days_ago),
+            )
+
+        rss = Article.Source.RSS_CRAWLED
+        cls.alice_own = mk(cls.alice, "alice-own", Article.Source.USER_SAVED, seed=1)
+        cls.rss_read = mk(cls.admin, "rss-read", rss, seed=1)   # 취향과 똑같은 벡터 = 1순위 후보
+        cls.rss_fresh = [
+            mk(cls.admin, f"rss-{i}", rss, seed=10 + i, category=cat, days_ago=i)
+            for i, cat in enumerate(["IT/테크", "IT/테크", "경제", "경제", "사회", "스포츠"], start=2)
+        ]
+        UserActionLog.objects.create(
+            user=cls.alice, article=cls.rss_read, article_url=cls.rss_read.url,
+            action=UserActionLog.ActionType.READ, region="KR", dwell_time=40,
+        )
+        # 외부 사이트 로그 (DB에 없는 기사 → article 없음)도 섞어 둔다
+        UserActionLog.objects.create(
+            user=cls.alice, article=None, article_url="https://elsewhere.example.com/x",
+            action=UserActionLog.ActionType.READ, region="KR", dwell_time=40,
+        )
+
+    def test_seen_ids_match_stored_action_values(self):
+        seen = set(UserActionLog.seen_article_ids(self.alice))
+        self.assertEqual(seen, {self.rss_read.id})
+
+    def test_click_is_not_counted_as_seen(self):
+        UserActionLog.objects.create(
+            user=self.alice, article=self.rss_fresh[0], article_url=self.rss_fresh[0].url,
+            action=UserActionLog.ActionType.CLICK, region="KR", dwell_time=8,
+        )
+        self.assertNotIn(self.rss_fresh[0].id, UserActionLog.seen_article_ids(self.alice))
+
+    def test_portfolio_excludes_read_and_own_articles(self):
+        for _ in range(30):
+            ids = {a["id"] for a in recommend_mixed_portfolio(self.alice, region="KR")}
+            self.assertTrue(ids)
+            self.assertNotIn(self.rss_read.id, ids, "이미 읽은 기사가 추천됨")
+            self.assertNotIn(self.alice_own.id, ids, "내가 저장한 기사가 추천됨")
+
+    def test_portfolio_falls_back_to_seen_when_nothing_else(self):
+        # 남은 후보가 하나도 없으면 본 기사라도 보여 준다 (빈 화면 방지, 원래 의도)
+        for art in self.rss_fresh:
+            UserActionLog.objects.create(
+                user=self.alice, article=art, article_url=art.url,
+                action=UserActionLog.ActionType.SAVE, region="KR", dwell_time=999,
+            )
+        self.assertTrue(recommend_mixed_portfolio(self.alice, region="KR"))

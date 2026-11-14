@@ -182,7 +182,7 @@ def run_embedding_task(article_id):
                 user=user,
                 article=article,
                 article_url=article.url,
-                action='SAVE', # 명시적 문자열 사용
+                action=UserActionLog.ActionType.SAVE,
                 region=article.region,
                 title=article.title,
                 description=article.summary[:200] if article.summary else "",
