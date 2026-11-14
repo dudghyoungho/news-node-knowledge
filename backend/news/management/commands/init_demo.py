@@ -10,19 +10,21 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 # 기존 뷰 임포트
 from news.views.article_views import save_article 
 from news.models import Article
+from news.access import DEMO_USERNAME
 
 class Command(BaseCommand):
     help = '기존 save_article 로직을 재사용하여 실제 기사를 크롤링하고 데모 데이터를 구축합니다.'
 
     def handle(self, *args, **options):
         User = get_user_model()
-        username = 'demo_guest'
-        
-        # 1. 데모 유저 생성
-        user, created = User.objects.get_or_create(username=username)
+        username = DEMO_USERNAME
+
+        # 1. 데모 유저 생성 (비밀번호 로그인 불가, 토큰으로만 사용)
+        user, created = User.objects.get_or_create(username=username, defaults={'email': 'demo@guest.com'})
+        if user.has_usable_password():
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
         if created:
-            user.set_password('demo1234')
-            user.save()
             self.stdout.write(self.style.SUCCESS(f"✅ 데모 유저 '{username}' 생성 완료"))
 
         # 2. 기존 데이터 삭제

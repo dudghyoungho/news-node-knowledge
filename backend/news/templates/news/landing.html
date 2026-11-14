@@ -101,11 +101,15 @@
                     window.location.href = `/api/news/dashboard/?token=${data.token}&region=${region}`; 
                     
                 } else {
-                    throw new Error('Demo login failed');
+                    // 429(호출 제한) 등 서버가 보낸 안내 문구가 있으면 그대로 보여 준다
+                    const errData = await response.json().catch(() => ({}));
+                    throw Object.assign(new Error(errData.error || errData.message || 'Demo login failed'), { fromServer: true });
                 }
             } catch (error) {
                 console.error('Login Error:', error);
-                alert('서버 연결에 실패했습니다. 관리자에게 문의하세요.');
+                alert(error.fromServer && error.message !== 'Demo login failed'
+                    ? error.message
+                    : '서버 연결에 실패했습니다. 관리자에게 문의하세요.');
                 
                 // 에러 시 버튼 복구
                 btn.innerHTML = originalText;

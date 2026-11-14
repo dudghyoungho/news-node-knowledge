@@ -4,7 +4,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import csrf_exempt # [필수] CSRF 면제
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
@@ -12,6 +12,9 @@ from rest_framework import status
 
 from django.shortcuts import render, redirect
 from django.contrib.auth import login
+
+from ..access import DEMO_USERNAME
+from ..throttles import AuthIPThrottle
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -25,6 +28,7 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @authentication_classes([])
+@throttle_classes([AuthIPThrottle])
 def google_login(request):
     """
     구글 액세스 토큰을 받아 유저를 생성/조회하고 DRF 토큰을 발급합니다.
@@ -86,21 +90,23 @@ def google_login(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])     # 1. 누구나 접근 가능
 @authentication_classes([])         # 2. 세션/토큰 인증 과정 생략 (CSRF 유발 방지)
+@throttle_classes([AuthIPThrottle]) # 3. IP별 분당 호출 제한
 def demo_login(request):
     """
     크롬 익스텐션용 데모 로그인 API
     호출 시 'demo_guest' 계정의 토큰을 반환합니다.
     """
-    username = 'demo_guest'
-
     # 1. 데모 유저 확인 (없으면 생성, 있으면 가져오기)
-    user, created = User.objects.get_or_create(username=username)
-    
-    if created:
-        # 처음 생성될 때만 비밀번호 설정 (사실 API로만 로그인하므로 몰라도 됨)
-        user.set_password('demo_password_1234')
-        user.email = 'demo@guest.com'
-        user.save()
+    user, created = User.objects.get_or_create(
+        username=DEMO_USERNAME,
+        defaults={'email': 'demo@guest.com'},
+    )
+
+    # 비밀번호로는 로그인할 수 없는 계정으로 둔다 (토큰으로만 사용).
+    # 예전 코드가 공개 저장소에 적힌 비밀번호를 설정했으므로, 기존 계정도 여기서 무효화한다.
+    if user.has_usable_password():
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
 
     # 2. 토큰 가져오기 (없으면 생성)
     token, _ = Token.objects.get_or_create(user=user)

@@ -15,3 +15,11 @@ from .models import Article
 
 def visible_articles(user):
     return Article.objects.filter(Q(user=user) | Q(source=Article.Source.RSS_CRAWLED))
+
+
+# 데모 계정: 랜딩 "View Live Demo"와 확장의 데모 로그인이 공유하는 계정
+DEMO_USERNAME = 'demo_guest'
+
+
+def is_demo_user(user):
+    return bool(user) and getattr(user, 'username', None) == DEMO_USERNAME

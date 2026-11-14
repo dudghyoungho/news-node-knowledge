@@ -145,7 +145,38 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
+
+    # [API 호출 제한] 설명은 news/throttles.py. 숫자는 여기서만 바꾼다.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'news.throttles.UserThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': '1000/hour',               # 로그인 사용자 전체 API
+        'summarize_hour': '30/hour',       # 요약 (GPT)
+        'summarize_day': '100/day',
+        'ai': '60/hour',                   # Bridge 코멘트, rag/review, rag/external (GPT)
+        'auth': '10/min',                  # 구글/데모 로그인 (IP별)
+        'demo_summarize_ip': '5/day',      # 데모 계정 요약: 방문자 IP별
+        'demo_summarize_total': '50/day',  # 데모 계정 요약: 전체 합계
+    },
+    # 앞단 프록시 수. 운영은 Nginx Proxy Manager 1단이라 1.
+    # 0이면 X-Forwarded-For를 무시하고 접속 IP(REMOTE_ADDR)를 쓴다.
+    # 운영 web 컨테이너는 8000을 외부에 열지 않으므로(expose만) 헤더 위조로 우회할 수 없다.
+    'NUM_PROXIES': int(os.environ.get('DRF_NUM_PROXIES', '1')),
+
+    # 429 응답에 확장·대시보드가 읽는 `error` 키를 넣는다
+    'EXCEPTION_HANDLER': 'news.exceptions.api_exception_handler',
+}
+
+# 호출 제한 횟수 저장용 (프로세스 메모리). gunicorn 워커가 1개라 충분하다.
+# 워커를 늘리면 프로세스마다 따로 세므로 Redis 캐시로 옮겨야 한다.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'news-node-knowledge',
+        'OPTIONS': {'MAX_ENTRIES': 10000},
+    }
 }
 
 # [API Keys]

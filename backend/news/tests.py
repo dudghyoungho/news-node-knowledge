@@ -8,6 +8,7 @@ import socket
 from types import SimpleNamespace
 from unittest import mock
 
+from django.core.cache import cache
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -138,9 +139,12 @@ class CrawlerGuardTests(SimpleTestCase):
 
 
 class SummarizeViewGuardTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()  # 호출 제한 횟수 초기화
+
     def _post(self, url):
         request = APIRequestFactory().post("/api/news/summarize/", {"url": url}, format="json")
-        force_authenticate(request, user=SimpleNamespace(id=1, is_authenticated=True))
+        force_authenticate(request, user=SimpleNamespace(id=1, pk=1, username="tester", is_authenticated=True))
         return summarize(request)
 
     def test_internal_url_returns_400_before_crawling(self):
@@ -175,6 +179,9 @@ def google_res(status=200, data=None):
 
 @override_settings(GOOGLE_OAUTH_CLIENT_IDS=[OUR_CLIENT])
 class GoogleLoginAudienceTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+
     def _post(self, body):
         request = APIRequestFactory().post("/api/news/auth/google/", body, format="json")
         return auth_views.google_login(request)
@@ -287,6 +294,9 @@ class CrossUserIsolationTests(TestCase):
                          url="https://news.example.com/shared")
         cls.rss_new = mk(cls.admin, "rss-new", Article.Source.RSS_CRAWLED, seed=3, days_ago=1)
 
+    def setUp(self):
+        cache.clear()
+
     def client_for(self, user):
         c = APIClient()
         c.force_authenticate(user)
@@ -348,3 +358,130 @@ class CrossUserIsolationTests(TestCase):
         )
         log = UserActionLog.objects.filter(user=self.bob).latest("timestamp")
         self.assertEqual(log.article_id, self.bob_art.id)
+
+
+# ---------------------------------------------------------------------------
+# [보-4] API 호출 제한 + 데모 계정 제한
+# ---------------------------------------------------------------------------
+from rest_framework.throttling import SimpleRateThrottle  # noqa: E402
+
+from news.access import DEMO_USERNAME  # noqa: E402
+
+# 검증 단계에서 바로 400으로 끝나는 주소. 크롤링·GPT 없이 호출 횟수만 센다.
+BLOCKED_URL = "http://127.0.0.1/"
+
+
+def set_rates(**rates):
+    """settings의 제한 숫자를 테스트 동안만 바꾼다."""
+    return mock.patch.dict(SimpleRateThrottle.THROTTLE_RATES, rates)
+
+
+class ThrottleTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.alice = User.objects.create_user("alice")
+        cls.bob = User.objects.create_user("bob")
+        cls.demo = User.objects.create_user(DEMO_USERNAME)
+
+    def setUp(self):
+        cache.clear()
+
+    def client_for(self, user, ip="203.0.113.1"):
+        # 운영처럼 프록시(NPM)가 붙인 X-Forwarded-For의 마지막 주소를 방문자 IP로 쓴다 (NUM_PROXIES=1)
+        c = APIClient(HTTP_X_FORWARDED_FOR=ip)
+        if user:
+            c.force_authenticate(user)
+        return c
+
+    def summarize(self, client):
+        return client.post("/api/news/summarize/", {"url": BLOCKED_URL}, format="json")
+
+    # --- 응답 형식 ---------------------------------------------------------
+    def test_throttled_response_has_error_key_and_retry_after(self):
+        c = self.client_for(None)
+        for _ in range(10):
+            self.assertEqual(c.post("/api/news/auth/demo/").status_code, 200)
+        r = c.post("/api/news/auth/demo/")
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("요청이 너무 많습니다", r.data["error"])
+        self.assertEqual(r.data["message"], r.data["error"])  # 확장 데모 로그인은 message를 읽음
+        self.assertTrue(r.has_header("Retry-After"))
+
+    # --- 로그인: IP별 ------------------------------------------------------
+    def test_auth_limit_is_per_ip(self):
+        for _ in range(10):
+            self.client_for(None, ip="203.0.113.1").post("/api/news/auth/demo/")
+        self.assertEqual(self.client_for(None, ip="203.0.113.1").post("/api/news/auth/demo/").status_code, 429)
+        self.assertEqual(self.client_for(None, ip="203.0.113.2").post("/api/news/auth/demo/").status_code, 200)
+
+    def test_spoofed_forwarded_for_prefix_does_not_bypass(self):
+        # 클라이언트가 앞쪽에 가짜 주소를 넣어도, 프록시가 붙인 마지막 주소로 센다
+        for i in range(10):
+            self.client_for(None, ip=f"10.9.9.{i}, 203.0.113.7").post("/api/news/auth/demo/")
+        r = self.client_for(None, ip="10.9.9.99, 203.0.113.7").post("/api/news/auth/demo/")
+        self.assertEqual(r.status_code, 429)
+
+    # --- 요약: 사용자별 ----------------------------------------------------
+    def test_summarize_hourly_limit_per_user(self):
+        alice = self.client_for(self.alice)
+        for _ in range(30):
+            self.assertEqual(self.summarize(alice).status_code, 400)
+        self.assertEqual(self.summarize(alice).status_code, 429)
+        # 다른 사용자는 영향 없음
+        self.assertEqual(self.summarize(self.client_for(self.bob)).status_code, 400)
+
+    def test_hourly_block_does_not_eat_daily_quota(self):
+        with set_rates(summarize_hour="2/hour", summarize_day="3/day"):
+            alice = self.client_for(self.alice)
+            self.summarize(alice), self.summarize(alice)
+            for _ in range(5):  # 시간당 한도에 막힌 요청들
+                self.assertEqual(self.summarize(alice).status_code, 429)
+            day_key = f"throttle_summarize_day_{self.alice.pk}"
+            self.assertEqual(len(cache.get(day_key)), 2)
+
+    # --- 데모 계정 ---------------------------------------------------------
+    def test_demo_summarize_limit_per_ip(self):
+        visitor_a = self.client_for(self.demo, ip="198.51.100.1")
+        for _ in range(5):
+            self.assertEqual(self.summarize(visitor_a).status_code, 400)
+        r = self.summarize(visitor_a)
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("데모 체험 한도", r.data["error"])
+        # 다른 방문자는 아직 쓸 수 있음
+        self.assertEqual(self.summarize(self.client_for(self.demo, ip="198.51.100.2")).status_code, 400)
+
+    def test_demo_summarize_total_limit(self):
+        with set_rates(demo_summarize_total="3/day"):
+            for i in range(3):
+                self.assertEqual(self.summarize(self.client_for(self.demo, ip=f"198.51.100.{i}")).status_code, 400)
+            r = self.summarize(self.client_for(self.demo, ip="198.51.100.200"))
+            self.assertEqual(r.status_code, 429)
+            self.assertIn("데모 체험 한도", r.data["error"])
+            # 일반 사용자는 데모 한도와 무관
+            self.assertEqual(self.summarize(self.client_for(self.alice)).status_code, 400)
+
+    def test_demo_visitors_have_separate_general_limits(self):
+        with set_rates(user="2/hour"):
+            a = self.client_for(self.demo, ip="198.51.100.1")
+            a.get("/api/news/rag/context/999999/"), a.get("/api/news/rag/context/999999/")
+            self.assertEqual(a.get("/api/news/rag/context/999999/").status_code, 429)
+            b = self.client_for(self.demo, ip="198.51.100.2")
+            self.assertEqual(b.get("/api/news/rag/context/999999/").status_code, 404)
+
+    # --- GPT 호출 API ------------------------------------------------------
+    def test_ai_endpoint_hourly_limit(self):
+        with set_rates(ai="2/hour"):
+            alice = self.client_for(self.alice)
+            alice.get("/api/news/articles/999999/bridge/")
+            alice.get("/api/news/articles/999999/bridge/")
+            self.assertEqual(alice.get("/api/news/articles/999999/bridge/").status_code, 429)
+
+    # --- 데모 비밀번호 -----------------------------------------------------
+    def test_demo_login_makes_password_unusable(self):
+        self.demo.set_password("old-known-password")
+        self.demo.save()
+        r = self.client_for(None).post("/api/news/auth/demo/")
+        self.assertEqual(r.status_code, 200)
+        self.demo.refresh_from_db()
+        self.assertFalse(self.demo.has_usable_password())

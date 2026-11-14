@@ -2,7 +2,7 @@ import logging
 import threading
 from django.shortcuts import get_object_or_404
 from django.http import StreamingHttpResponse 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,6 +12,7 @@ from ..models import Article, UserActionLog
 from ..recommendation import update_user_vector
 from ..crawler import extract_article
 from ..url_safety import validate_public_url, UnsafeURLError
+from ..throttles import SUMMARIZE_THROTTLES
 from ..ai_service import summarize_stream, get_embedding, classify_news
 from ..nlp_utils import extract_entities # [New] NER 함수 임포트
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 # =========================================================
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes(SUMMARIZE_THROTTLES)  # GPT 호출 + 데모 한도
 def summarize(request):
     """
     URL을 받아 기사를 크롤링하고, 국적(Region)에 맞춰 요약을 스트리밍합니다.

@@ -1,9 +1,10 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from ..models import Article
 from ..access import visible_articles
+from ..throttles import AIThrottle
 
 # 서비스 로직 임포트
 from ..rag_service import (
@@ -91,6 +92,7 @@ def find_shared_keywords(obj_a, obj_b):
 # ------------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AIThrottle])  # GPT 호출
 def article_bridge_view(request, article_id):
     """
     [Knowledge Bridge]
@@ -168,6 +170,7 @@ def context_recommendation(request, article_id):
 # ------------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AIThrottle])  # GPT 호출
 def review_recommendation(request):
     region = request.GET.get('region', 'KR') 
     data = review_past_knowledge(request.user, region=region)
@@ -198,6 +201,7 @@ def review_recommendation(request):
 # ------------------------------------------------------------------
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AIThrottle])  # GPT 호출
 def external_recommendation(request):
     region = request.GET.get('region', 'KR')
     
