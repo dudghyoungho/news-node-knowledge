@@ -42,9 +42,16 @@ def summarize(request):
         logger.warning(f"⛔ [Summarize] 차단된 주소 요청: user={request.user.id} url={url!r} ({e})")
         return Response({'error': f'요약할 수 없는 주소입니다: {e}'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # 이미 저장된 기사인지 확인
+    # 이미 저장된 기사면 409로 알린다.
+    # 예전에는 200 + 배열(['이미 저장된 기사입니다!'])을 돌려줘서, 팝업이 이 문장을 요약문으로 보여 주고
+    # 저장을 누르면 진짜 요약이 이 문장으로 덮어써졌다. 팝업은 오류 응답에서 아래 키를 읽는다.
+    #   is_saved: 현재 팝업 / status=ALREADY_SAVED: 웹스토어 v1.4.5 팝업
     if Article.objects.filter(user=request.user, url=url, status=Article.Status.SAVED).exists():
-        return Response({'이미 저장된 기사입니다!'}, status=status.HTTP_200_OK)
+        return Response({
+            'error': '이미 저장된 기사입니다.',
+            'is_saved': True,
+            'status': 'ALREADY_SAVED',
+        }, status=status.HTTP_409_CONFLICT)
 
     try:
         # 1. 크롤링
@@ -223,6 +230,11 @@ def save_article(request):
         return Response({'error': 'URL이 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
 
     article = get_object_or_404(Article, user=request.user, url=url)
+
+    # 이미 저장된 기사는 건드리지 않는다 (요약 덮어쓰기, 임베딩·SAVE 로그·취향 벡터 중복 반영 방지)
+    if article.status == Article.Status.SAVED:
+        return Response({'message': '이미 저장된 기사입니다.', 'status': 'SAVED', 'is_saved': True},
+                        status=status.HTTP_200_OK)
 
     try:
         # 1. 텍스트 정보 우선 저장 (빠른 응답)

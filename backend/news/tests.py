@@ -559,3 +559,197 @@ class SeenArticleExclusionTests(TestCase):
                 action=UserActionLog.ActionType.SAVE, region="KR", dwell_time=999,
             )
         self.assertTrue(recommend_mixed_portfolio(self.alice, region="KR"))
+
+
+# ---------------------------------------------------------------------------
+# [테-1] 남은 빈틈: 비로그인 접근, 핵심 흐름(요약→저장), 읽기 로그, 개체명 매핑
+#        + [버-3] 이미 저장된 기사 응답
+# ---------------------------------------------------------------------------
+import numpy as np  # noqa: E402
+
+from news import nlp_utils  # noqa: E402
+
+
+class SyncThread:
+    """threading.Thread 대신: start()에서 바로 실행해 테스트에서 결과를 확인할 수 있게 한다."""
+    def __init__(self, target=None, args=(), kwargs=None, **_):
+        self.target, self.args, self.kwargs = target, args, kwargs or {}
+
+    def start(self):
+        self.target(*self.args, **self.kwargs)
+
+
+class UnauthenticatedAccessTests(TestCase):
+    """로그인하지 않으면 모든 API가 401이어야 한다 (로그인 API 제외)."""
+
+    def test_all_apis_require_login(self):
+        c = APIClient()
+        cases = [
+            ("post", "/api/news/summarize/"), ("post", "/api/news/save/"), ("post", "/api/news/logs/"),
+            ("get", "/api/news/stats/"), ("get", "/api/news/graph/data/"),
+            ("get", "/api/news/articles/1/bridge/"), ("get", "/api/news/rag/review/"),
+            ("get", "/api/news/rag/external/"), ("get", "/api/news/rag/context/1/"),
+        ]
+        for method, path in cases:
+            with self.subTest(path=path):
+                r = getattr(c, method)(path, {}, format="json") if method == "post" else c.get(path)
+                self.assertEqual(r.status_code, 401)
+
+
+class CoreFlowTests(TestCase):
+    """확장의 핵심 흐름: 요약(스트리밍) → 저장 → 백그라운드(임베딩, SAVE 로그, 취향 벡터)."""
+    URL = "https://news.example.com/article-1"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.alice = get_user_model().objects.create_user("alice")
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.client.force_authenticate(self.alice)
+
+    def summarize(self, url=None):
+        with fake_dns(PUBLIC):
+            return self.client.post("/api/news/summarize/", {"url": url or self.URL, "region": "KR"}, format="json")
+
+    def make_article(self, status, summary="진짜 요약"):
+        return Article.objects.create(
+            user=self.alice, title="기사", url=self.URL, region="KR", status=status,
+            summary=summary, category="IT/테크", embedding_pytorch=vec(5),
+        )
+
+    @mock.patch("news.views.article_views.summarize_stream", return_value=iter(["첫째 줄\n", "둘째 줄"]))
+    @mock.patch("news.views.article_views.extract_entities", return_value={"ORG": ["뉴스노드"]})
+    @mock.patch("news.views.article_views.classify_news", return_value={"category": "IT/테크", "type": "INSIGHT"})
+    @mock.patch("news.views.article_views.extract_article",
+                return_value={"title": "제목", "content": "본문 " * 50, "thumbnail_url": None})
+    def test_summarize_streams_and_saves_pending_article(self, *_):
+        r = self.summarize()
+        self.assertEqual(r.status_code, 200)
+        body = b"".join(r.streaming_content).decode()
+        self.assertEqual(body, "첫째 줄\n둘째 줄")
+        art = Article.objects.get(user=self.alice, url=self.URL)
+        self.assertEqual(art.status, Article.Status.PENDING)
+        self.assertEqual((art.category, art.article_type, art.region), ("IT/테크", "INSIGHT", "KR"))
+        self.assertEqual(art.entities, {"ORG": ["뉴스노드"]})
+        self.assertEqual(art.summary, "첫째 줄\n둘째 줄")   # 스트리밍이 끝나면 요약도 저장
+
+    @mock.patch("news.views.article_views.get_embedding", return_value={"pytorch": vec(1), "openai": None})
+    @mock.patch("news.views.article_views.threading.Thread", SyncThread)
+    def test_save_marks_saved_and_runs_background_task(self, _emb):
+        self.make_article(Article.Status.PENDING, summary="스트리밍 요약")
+        r = self.client.post("/api/news/save/", {"url": self.URL, "summary": "확정 요약", "region": "KR"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        art = Article.objects.get(user=self.alice, url=self.URL)
+        self.assertEqual((art.status, art.summary), (Article.Status.SAVED, "확정 요약"))
+        self.assertTrue(np.allclose(art.embedding_pytorch, vec(1)))
+        self.assertTrue(UserActionLog.objects.filter(user=self.alice, article=art, action="SAVE").exists())
+        self.assertTrue(np.allclose(UserProfile.objects.get(user=self.alice).embedding_user, vec(1)))
+
+    @mock.patch("news.views.article_views.extract_article")
+    def test_summarize_already_saved_returns_409_for_both_popup_versions(self, extract):
+        self.make_article(Article.Status.SAVED)
+        r = self.summarize()
+        self.assertEqual(r.status_code, 409)
+        self.assertTrue(r.data["is_saved"])                 # 현재 팝업이 보는 키
+        self.assertEqual(r.data["status"], "ALREADY_SAVED")  # 웹스토어 v1.4.5 팝업이 보는 키
+        self.assertIn("error", r.data)
+        extract.assert_not_called()
+
+    @mock.patch("news.views.article_views.threading.Thread")
+    def test_save_on_already_saved_article_changes_nothing(self, thread):
+        art = self.make_article(Article.Status.SAVED)
+        r = self.client.post("/api/news/save/",
+                             {"url": self.URL, "summary": '["이미 저장된 기사입니다!"]', "region": "KR"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        art.refresh_from_db()
+        self.assertEqual(art.summary, "진짜 요약")           # 요약을 덮어쓰지 않음
+        thread.assert_not_called()                          # 임베딩·로그·취향 벡터를 다시 돌리지 않음
+        self.assertFalse(UserActionLog.objects.filter(user=self.alice).exists())
+
+
+class LogViewTests(TestCase):
+    """읽기 로그: 체류 시간으로 CLICK/READ를 정하고, READ면 취향 벡터에 반영한다."""
+    URL = "https://news.example.com/rss-1"
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.admin = User.objects.create_superuser("admin", "admin@test.local", "x")
+        cls.alice = User.objects.create_user("alice")
+        cls.rss = Article.objects.create(
+            user=cls.admin, title="rss", url=cls.URL, source=Article.Source.RSS_CRAWLED, region="KR",
+            status=Article.Status.SAVED, embedding_pytorch=vec(2),
+        )
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.client.force_authenticate(self.alice)
+
+    def log(self, dwell, url=None, **extra):
+        return self.client.post("/api/news/logs/",
+                                {"article_url": url or self.URL, "dwell_time": dwell, "region": "KR", **extra},
+                                format="json")
+
+    def test_short_visit_is_click_without_vector_update(self):
+        self.assertEqual(self.log(10).status_code, 201)
+        self.assertEqual(UserActionLog.objects.get(user=self.alice).action, "CLICK")
+        self.assertFalse(UserProfile.objects.filter(user=self.alice).exists())
+
+    def test_long_read_on_internal_article_updates_vector(self):
+        r = self.log(20)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(UserActionLog.objects.get(user=self.alice).action, "READ")
+        self.assertTrue(np.allclose(UserProfile.objects.get(user=self.alice).embedding_user, vec(2)))
+
+    def test_summary_signal_moves_vector_halfway(self):
+        UserProfile.objects.create(user=self.alice, embedding_user=vec(1))
+        self.assertEqual(self.log(999).status_code, 201)
+        expected = np.array(vec(1)) * 0.5 + np.array(vec(2)) * 0.5
+        self.assertTrue(np.allclose(UserProfile.objects.get(user=self.alice).embedding_user, expected))
+
+    def test_read_right_after_save_is_skipped(self):
+        UserActionLog.objects.create(user=self.alice, article=self.rss, article_url=self.URL, action="SAVE")
+        r = self.log(20)
+        self.assertEqual(r.data["status"], "skipped")
+        self.assertEqual(UserActionLog.objects.filter(user=self.alice).count(), 1)
+
+    @mock.patch("news.views.log_views.threading.Thread")
+    def test_external_article_is_vectorized_in_background(self, thread):
+        r = self.log(20, url="https://elsewhere.example.com/x", title="외부 기사 제목", description="설명")
+        self.assertEqual(r.status_code, 201)
+        thread.assert_called_once()
+        self.assertIsNone(UserActionLog.objects.get(user=self.alice).article)
+
+
+class EntityMappingTests(SimpleTestCase):
+    """spaCy 결과를 표준 라벨(PERSON/ORG/GPE)로 바꾸고 잡음을 거른다. spaCy 대신 가짜 결과를 쓴다."""
+
+    @staticmethod
+    def fake_nlp(*ents):
+        doc = SimpleNamespace(ents=[SimpleNamespace(text=t, label_=l) for t, l in ents])
+        return lambda text: doc
+
+    def test_korean_labels_are_mapped_and_noise_filtered(self):
+        nlp = self.fake_nlp(("홍길동", "PS"), ("삼성전자", "OG"), ("서울", "LC"),
+                            ("삼성전자", "OG"),   # 중복
+                            ("김", "PS"),         # 한 글자
+                            ("2026", "OG"),       # 숫자만
+                            ("삼성,", "OG"),      # 문장부호
+                            ("어제", "DT"))       # 대상 아닌 라벨
+        with mock.patch.object(nlp_utils, "nlp_ko", nlp):
+            self.assertEqual(nlp_utils.extract_entities("본문", region="KR"),
+                             {"PERSON": ["홍길동"], "ORG": ["삼성전자"], "GPE": ["서울"]})
+
+    def test_english_labels_for_au(self):
+        nlp = self.fake_nlp(("Anthony Albanese", "PERSON"), ("Nvidia", "ORG"), ("Sydney", "GPE"), ("Monday", "DATE"))
+        with mock.patch.object(nlp_utils, "nlp_en", nlp):
+            self.assertEqual(nlp_utils.extract_entities("text", region="AU"),
+                             {"PERSON": ["Anthony Albanese"], "ORG": ["Nvidia"], "GPE": ["Sydney"]})
+
+    def test_empty_text_or_missing_model(self):
+        self.assertEqual(nlp_utils.extract_entities("", region="KR"), {})
+        with mock.patch.object(nlp_utils, "nlp_ko", None):
+            self.assertEqual(nlp_utils.extract_entities("본문", region="KR"), {})
