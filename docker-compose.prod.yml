@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     command: >
       sh -c "python backend/manage.py collectstatic --noinput &&
-             gunicorn --bind 0.0.0.0:8000 --chdir backend config.wsgi:application"
+             gunicorn -c backend/gunicorn.conf.py"
     volumes:
       - .:/app
     expose:

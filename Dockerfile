@@ -33,4 +33,4 @@ COPY . /app/
 
 # [수정] 기본 실행 명령을 Gunicorn으로 변경 (안전장치)
 # 실제 실행은 docker-compose command가 덮어쓰지만, 이미지는 프로덕션용으로 맞춤
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--chdir", "backend", "config.wsgi:application"]
+CMD ["gunicorn", "-c", "backend/gunicorn.conf.py"]

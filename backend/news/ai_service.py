@@ -1,6 +1,7 @@
 from django.conf import settings
 import os
 import json
+import threading
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
@@ -13,6 +14,8 @@ if not settings.configured:
     dotenv.load_dotenv()
 
 _local_embedding_model = None
+# gunicorn 스레드 여러 개가 처음에 동시에 부를 때 모델(약 1GB)을 두 번 올리지 않도록
+_local_model_lock = threading.Lock()
 
 def get_local_model():
     """
@@ -20,10 +23,12 @@ def get_local_model():
     """
     global _local_embedding_model
     if _local_embedding_model is None:
-        print("🏗️ PyTorch 로컬 모델 로딩 중... (최초 1회만 실행)")
-        # 이미 받아둔 캐시가 있다면 빠르게 로드됩니다.
-        _local_embedding_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
-        print("✅ 모델 로딩 완료!")
+        with _local_model_lock:
+            if _local_embedding_model is None:  # 기다리는 동안 다른 스레드가 불러왔을 수 있음
+                print("🏗️ PyTorch 로컬 모델 로딩 중... (최초 1회만 실행)")
+                # 이미 받아둔 캐시가 있다면 빠르게 로드됩니다.
+                _local_embedding_model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
+                print("✅ 모델 로딩 완료!")
     return _local_embedding_model
 
 def classify_news(text, region='KR'):
