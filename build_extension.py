@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import sys
 import json
@@ -12,6 +13,15 @@ OAUTH_CLIENT_IDS = {
     "dev": "307150378715-6k7401oof17j9gvg9dd83cvduv7n79s4.apps.googleusercontent.com",
     "prod": "307150378715-msus9lvuupid4a7et5avbhlabbml3l4s.apps.googleusercontent.com", # Server Test용
     "store": "307150378715-ll2i127glnolsup1ds1tspbdp20qbb8f.apps.googleusercontent.com" # Web Store 배포용
+}
+
+# 빌드 모드별 API 서버 주소 (공개 값).
+# extension_src/config.js는 git 제외 파일이라, 운영 주소를 거기에만 두면 잘못 바뀌어도 기록이 남지 않는다
+# (2026-02 도메인 정지 때 옛 IP로 바꾼 채 남아 있던 일). 그래서 빌드할 때 여기 값으로 덮어쓴다.
+SERVER_URLS = {
+    "dev": "http://localhost:8000",
+    "prod": "https://news.young-dev.link",
+    "store": "https://news.young-dev.link",
 }
 
 # 소스 및 빌드 디렉토리 설정
@@ -73,14 +83,20 @@ def build(mode):
     with open(config_src, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # JS 파일 내부의 ENV 값을 문자열 치환
-    # 예: ENV: 'development' -> ENV: 'production'
-    new_content = content.replace("ENV: 'development'", f"ENV: '{config_env}'")
-    
+    # JS 파일 내부의 ENV 값과 그 환경의 서버 주소를 치환
+    # 예: ENV: 'development' -> ENV: 'production', production: '<옛 주소>' -> production: 'https://...'
+    server_url = SERVER_URLS[mode]
+    new_content, n_env = re.subn(r"ENV:\s*'[a-z]+'", f"ENV: '{config_env}'", content, count=1)
+    new_content, n_url = re.subn(rf"({config_env}:\s*)'[^']*'", rf"\g<1>'{server_url}'", new_content, count=1)
+    if n_env != 1 or n_url != 1:
+        # 형식이 바뀌어 치환이 안 되면 잘못된 주소로 조용히 빌드되지 않게 멈춘다
+        print(f"❌ Error: config.js에서 ENV 또는 {config_env} 주소를 찾지 못했습니다.")
+        sys.exit(1)
+
     with open(config_dest, 'w', encoding='utf-8') as f:
         f.write(new_content)
-    
-    print(f"✅ config.js configured for {config_env}")
+
+    print(f"✅ config.js configured for {config_env} → {server_url}")
 
     # 4. [핵심] manifest.json 수정 (OAuth Client ID 주입)
     # 개발용과 배포용 manifest가 따로 있다면 여기서 분기 가능하지만,
